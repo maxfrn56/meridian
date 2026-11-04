@@ -75,7 +75,14 @@ export function Sparkline({ values, max, muted }: { values: number[]; max: numbe
   const points = values.map((value, index) => `${(index * step).toFixed(1)},${(height - 2 - (value / max) * (height - 4)).toFixed(1)}`);
   return (
     <svg className={`lp-spark${muted ? " lp-spark--muted" : ""}`} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <polyline points={points.join(" ")} fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        pathLength={1}
+        points={points.join(" ")}
+        fill="none"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

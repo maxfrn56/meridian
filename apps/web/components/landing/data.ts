@@ -26,7 +26,6 @@ export const KPIS = {
   score: 64,
   scoreDelta: "+5 sur 30 jours",
   citationRate: "38,3 %",
-  citationRateBefore: "38,1 %",
   citedAnswers: 138,
   totalAnswers: 360,
   citationDelta: "+6 pts sur 30 jours",

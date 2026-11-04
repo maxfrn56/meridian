@@ -1,6 +1,9 @@
 import { ArrowUp, ChevronDown } from "lucide-react";
+import type { CSSProperties } from "react";
 import { AppWindow } from "@/components/landing/app-window";
 import { BRAND, CITATION_TREND, KPIS, OPPORTUNITIES, SHARE_OF_VOICE } from "@/components/landing/data";
+import { CountUp, Reveal } from "@/components/landing/motion";
+import { MaskedTitle } from "@/components/landing/masked-title";
 
 const Y_MAX = 60;
 const Y_TICKS = [0, 20, 40, 60];
@@ -33,17 +36,15 @@ export function Dashboard() {
   return (
     <section id="produit" className="lp-section lp-section--surface" aria-labelledby="dashboard-title">
       <div className="lp-container">
-        <div className="lp-section-head">
-          <h2 id="dashboard-title" className="lp-h2">
-            Toute votre visibilité dans les IA, sur un seul écran.
-          </h2>
+        <Reveal className="lp-section-head">
+          <MaskedTitle id="dashboard-title" className="lp-h2" text="Toute votre visibilité dans les IA, sur un seul écran." />
           <p className="lp-lead">
             Score GEO, taux de citation, part de voix face à vos concurrents, évolution et opportunités. Le tableau de
             bord se met à jour chaque matin.
           </p>
-        </div>
+        </Reveal>
 
-        <figure className="lp-dashboard">
+        <Reveal as="figure" className="lp-dashboard" threshold={0.25}>
           <figcaption className="visually-hidden">
             Tableau de bord d&apos;{BRAND.name} sur 30 jours : score GEO 64 sur 100, taux de citation 38,3 %, part de voix
             24 % (deuxième sur cinq marques, derrière Notafix à 31 %), rang moyen 2,4. Sur 90 jours, le taux de citation
@@ -68,7 +69,7 @@ export function Dashboard() {
                 <div className="lp-tile">
                   <span className="lp-tile__label">Score GEO</span>
                   <strong className="lp-tile__value">
-                    {KPIS.score}
+                    <CountUp value={KPIS.score} />
                     <small>/100</small>
                   </strong>
                   <span className="lp-meter lp-meter--client">
@@ -81,7 +82,9 @@ export function Dashboard() {
                 </div>
                 <div className="lp-tile">
                   <span className="lp-tile__label">Taux de citation</span>
-                  <strong className="lp-tile__value">{KPIS.citationRate}</strong>
+                  <strong className="lp-tile__value">
+                    <CountUp value={38.3} decimals={1} suffix=" %" delay={90} />
+                  </strong>
                   <span className="lp-tile__sub">
                     {KPIS.citedAnswers} réponses sur {KPIS.totalAnswers}
                   </span>
@@ -92,7 +95,9 @@ export function Dashboard() {
                 </div>
                 <div className="lp-tile">
                   <span className="lp-tile__label">Part de voix</span>
-                  <strong className="lp-tile__value">{KPIS.shareOfVoice}</strong>
+                  <strong className="lp-tile__value">
+                    <CountUp value={24} suffix=" %" delay={180} />
+                  </strong>
                   <span className="lp-tile__sub">{KPIS.shareRank}</span>
                   <span className="lp-tile__delta">
                     <ArrowUp />
@@ -101,7 +106,9 @@ export function Dashboard() {
                 </div>
                 <div className="lp-tile">
                   <span className="lp-tile__label">Rang moyen</span>
-                  <strong className="lp-tile__value">{KPIS.averageRank}</strong>
+                  <strong className="lp-tile__value">
+                    <CountUp value={2.4} from={5} decimals={1} delay={270} />
+                  </strong>
                   <span className="lp-tile__sub">quand vous êtes cité</span>
                   <span className="lp-tile__delta">
                     <ArrowUp />
@@ -131,6 +138,12 @@ export function Dashboard() {
                         </span>
                       ))}
                       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="lp-line__svg">
+                        <defs>
+                          <mask id="lp-line-wipe" maskUnits="userSpaceOnUse" x="-5" y="-10" width="110" height="120">
+                            <rect className="lp-line__wipe" x="-5" y="-10" width="110" height="120" fill="#fff" />
+                          </mask>
+                        </defs>
+                        <g mask="url(#lp-line-wipe)">
                         {SERIES.map((serie) => (
                           <polyline
                             key={serie.key}
@@ -139,6 +152,7 @@ export function Dashboard() {
                             vectorEffect="non-scaling-stroke"
                           />
                         ))}
+                        </g>
                       </svg>
                       {SERIES.map((serie) => {
                         const last = serie.values[serie.values.length - 1];
@@ -166,8 +180,12 @@ export function Dashboard() {
                     <span className="lp-muted">5 marques</span>
                   </div>
                   <ul className="lp-sov">
-                    {SHARE_OF_VOICE.map((brand) => (
-                      <li key={brand.name} className={brand.client ? "is-client" : undefined}>
+                    {SHARE_OF_VOICE.map((brand, index) => (
+                      <li
+                        key={brand.name}
+                        className={brand.client ? "is-client" : undefined}
+                        style={{ "--i": index } as CSSProperties}
+                      >
                         <span className="lp-sov__name">{brand.name}</span>
                         <span className="lp-sov__track">
                           <i style={{ width: `${(brand.value / SHARE_OF_VOICE[0].value) * 100}%` }} />
@@ -211,7 +229,7 @@ export function Dashboard() {
               </div>
             </AppWindow>
           </div>
-        </figure>
+        </Reveal>
 
         <dl className="lp-captions">
           {CAPTIONS.map((caption) => (
