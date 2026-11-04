@@ -1,8 +1,8 @@
 export function PageFallback() {
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8">
-      <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-      <div className="mt-3 h-9 w-64 animate-pulse rounded bg-muted" />
+    <div className="mx-auto max-w-6xl px-5 py-10" aria-busy="true" aria-label="Chargement">
+      <div className="h-9 w-64 animate-pulse rounded-lg bg-muted" />
+      <div className="mt-3 h-4 w-96 max-w-full animate-pulse rounded bg-muted" />
       <div className="mt-8 grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="h-28 animate-pulse rounded-xl bg-muted" />

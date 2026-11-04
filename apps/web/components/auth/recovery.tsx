@@ -39,7 +39,7 @@ export function ForgotPassword() {
             <Label htmlFor="email">E-mail</Label>
             <Input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </div>
-          {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="mt-4 text-sm font-semibold text-destructive">{error}</p> : null}
           <Button type="submit" className="mt-6 w-full" disabled={pending}>
             {pending ? "Patientez…" : "Envoyer le lien"}
           </Button>
@@ -83,7 +83,7 @@ export function ResetPassword() {
 
   return (
     <AuthFrame title="Nouveau mot de passe" subtitle="8 caractères minimum, avec une lettre et un chiffre.">
-      {!token ? <p className="mt-8 text-sm text-destructive">Ce lien est incomplet. Demandez-en un nouveau.</p> : null}
+      {!token ? <p className="mt-8 text-sm font-semibold text-destructive">Ce lien est incomplet. Demandez-en un nouveau.</p> : null}
       {notice ? (
         <p className="mt-8 text-sm leading-6">{notice}</p>
       ) : (
@@ -98,7 +98,7 @@ export function ResetPassword() {
               <Input id="confirmation" type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required minLength={8} />
             </div>
           </div>
-          {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="mt-4 text-sm font-semibold text-destructive">{error}</p> : null}
           <Button type="submit" className="mt-6 w-full" disabled={pending || !token}>
             {pending ? "Patientez…" : "Enregistrer"}
           </Button>

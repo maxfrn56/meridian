@@ -59,9 +59,9 @@ export function Globe({ id, className, spin = false }: { id: string; className?:
 }
 
 /** Logo : au survol, son méridien fait un demi-tour (voir .lp-logo__meridian). */
-export function LogoMark() {
+export function LogoMark({ className = "lp-logo__mark" }: { className?: string }) {
   return (
-    <svg className="lp-logo__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <g fill="none" stroke="currentColor" strokeWidth="1.6">
         <circle cx="12" cy="12" r="9.2" />
         <ellipse className="lp-logo__meridian" cx="12" cy="12" rx="4.4" ry="9.2" />

@@ -33,7 +33,7 @@ export function BillingView() {
   if (billing.error || !billing.data) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{billing.error?.message ?? "Forfaits indisponibles."}</p>
+        <p className="text-sm font-semibold text-destructive">{billing.error?.message ?? "Forfaits indisponibles."}</p>
       </div>
     );
   }
@@ -42,7 +42,6 @@ export function BillingView() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow="Abonnement mensuel"
         title="Choisissez le nombre de questions"
         description="Une question est envoyée aux trois moteurs et compte pour une dans le forfait. Le compte reste ouvert : position, sources et axes d'amélioration se consultent sans nouvelle question."
       />
@@ -51,16 +50,16 @@ export function BillingView() {
           <CardContent className="pt-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Mois en cours · {data.periodMonth}</p>
+                <p className="text-sm text-muted-foreground">Mois en cours · {data.periodMonth}</p>
                 <p className="mt-2 text-lg font-medium">{data.plan.name}</p>
                 <p className="text-sm text-muted-foreground">
                   {data.questionsUsed} sur {data.plan.questionsPerMonth} questions envoyées. Il en reste {data.questionsRemaining}.
                 </p>
               </div>
-              <p className="font-mono text-2xl">{data.plan.priceEur} €<span className="text-sm text-muted-foreground"> / mois</span></p>
+              <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{data.plan.priceEur} €<span className="text-sm text-muted-foreground"> / mois</span></p>
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-primary" style={{ width: `${used}%` }} />
+              <div className="h-full bg-foreground" style={{ width: `${used}%` }} />
             </div>
           </CardContent>
         </Card>
@@ -69,7 +68,7 @@ export function BillingView() {
         {data.plans.map((plan) => {
           const current = data.plan?.id === plan.id;
           return (
-            <Card key={plan.id} className={cn(current && "border-primary")}>
+            <Card key={plan.id} className={cn(current && "border-foreground/30 shadow-md")}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle>{plan.name}</CardTitle>
@@ -77,10 +76,10 @@ export function BillingView() {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="font-mono text-3xl">{plan.priceEur} €<span className="text-sm text-muted-foreground"> / mois</span></p>
+                <p className="tabular-nums text-3xl font-semibold tracking-[-0.03em]">{plan.priceEur} €<span className="text-sm text-muted-foreground"> / mois</span></p>
                 <p className="mt-3 text-sm font-medium">{plan.questionsPerMonth} questions par mois</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.detail}</p>
-                <Button className="mt-5 w-full" variant={current ? "outline" : "default"} disabled={current || choose.isPending} onClick={() => choose.mutate(plan.id)}>
+                <Button className="mt-5 w-full" variant="outline" disabled={current || choose.isPending} onClick={() => choose.mutate(plan.id)}>
                   {current ? "Forfait en cours" : "Activer ce forfait"}
                 </Button>
               </CardContent>

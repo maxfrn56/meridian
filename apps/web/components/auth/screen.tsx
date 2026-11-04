@@ -1,5 +1,6 @@
 "use client";
 
+import { Globe, LogoMark } from "@/components/landing/globe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,22 +21,33 @@ export function AuthFrame({
 }) {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="hidden flex-col justify-between border-r border-border px-12 py-10 lg:flex">
-        <p className="text-sm font-medium tracking-[0.18em] text-primary uppercase">Meridian</p>
+      <section className="relative isolate hidden flex-col justify-between overflow-hidden border-r border-border bg-muted px-12 py-10 lg:flex">
+        <Globe
+          id="auth"
+          className="pointer-events-none absolute top-[58%] left-1/2 -z-10 w-[130%] -translate-x-1/2 text-[#dcdfe5]"
+        />
+        <Link href="/" className="flex w-fit items-center gap-2 text-lg font-semibold tracking-[-0.02em]">
+          <LogoMark className="size-[22px]" />
+          Meridian
+        </Link>
         <div>
-          <h1 className="max-w-md text-4xl font-semibold tracking-tight">
-            Mesurez ce que les moteurs génératifs disent de votre marque.
+          <h1 className="max-w-md text-4xl font-semibold leading-[1.1] tracking-[-0.03em] text-balance">
+            Voyez ce que les IA disent de vous. <span className="text-muted-foreground">Puis changez la réponse.</span>
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
+          <p className="mt-4 max-w-md text-base leading-7 text-muted-foreground">
             Taux de citation, part de voix face aux concurrents, audit du site et actions classées par priorité.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">GEO · OpenAI · Perplexity · Gemini</p>
+        <p className="text-sm text-muted-foreground">Analyse quotidienne sur ChatGPT, Perplexity et Gemini</p>
       </section>
-      <section className="flex items-center justify-center px-6 py-16">
+      <section className="flex flex-col items-center justify-center px-6 py-16">
+        <Link href="/" className="mb-10 flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] lg:hidden">
+          <LogoMark className="size-[22px]" />
+          Meridian
+        </Link>
         <div className="w-full max-w-sm">
-          <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
+          <h2 className="text-3xl font-semibold tracking-[-0.03em]">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p>
           {children}
         </div>
       </section>
@@ -174,7 +186,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
               </div>
             ) : null}
           </div>
-          {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="mt-4 text-sm font-semibold text-destructive">{error}</p> : null}
           {notice ? <p className="mt-4 text-sm text-muted-foreground">{notice}</p> : null}
           {needsVerification ? (
             <Button type="button" variant="outline" className="mt-4 w-full" disabled={pending || !email} onClick={resend}>

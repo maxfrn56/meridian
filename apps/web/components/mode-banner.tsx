@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import type { LlmMode } from "@/lib/types";
 
 export function ModeBanner({ mode }: { mode: LlmMode }) {
@@ -7,7 +8,8 @@ export function ModeBanner({ mode }: { mode: LlmMode }) {
       ? "Une partie des réponses vient des moteurs, l'autre est simulée faute de clé API."
       : "Réponses simulées. Ajoutez les clés OpenAI, Perplexity ou Gemini pour interroger les moteurs.";
   return (
-    <p className="no-print mb-6 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent">
+    <p className="no-print mb-6 flex items-start gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
+      <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       {text}
     </p>
   );

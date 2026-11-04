@@ -1,6 +1,6 @@
 "use client";
 
-import { DomainChart, SovChart, TrendChart } from "@/components/charts";
+import { DomainChart, SovChart, TrendChart, TrendLegend } from "@/components/charts";
 import { ModeBanner } from "@/components/mode-banner";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,7 @@ function DashboardData() {
   if (overview.error) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{overview.error.message}</p>
+        <p className="text-sm font-semibold text-destructive">{overview.error.message}</p>
         <Button className="mt-4" variant="outline" onClick={() => overview.refetch()}>
           Réessayer
         </Button>
@@ -50,7 +50,7 @@ function DashboardData() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow={data.sector || "Espace de travail"}
+        meta={data.sector || undefined}
         title={data.brandName || data.workspaceName}
         description={data.domain ? `Domaine suivi : ${data.domain}` : "Configurez la marque pour commencer le suivi."}
         action={
@@ -64,7 +64,7 @@ function DashboardData() {
       />
       <ModeBanner mode={data.llmMode} />
       <AccountAccess billing={billing.data} />
-      {run.error ? <p className="mb-4 text-sm text-destructive">{run.error.message}</p> : null}
+      {run.error ? <p className="mb-4 text-sm font-semibold text-destructive">{run.error.message}</p> : null}
       {empty ? (
         <Card>
           <CardContent className="py-8">
@@ -89,11 +89,7 @@ function DashboardData() {
             <Card>
               <CardHeader>
                 <CardTitle>Citation, part de voix et score GEO</CardTitle>
-                <div className="flex gap-3 text-xs text-muted-foreground">
-                  <span className="text-primary">Citation</span>
-                  <span className="text-[#8eb4ff]">Voix</span>
-                  <span className="text-accent">Score</span>
-                </div>
+                <TrendLegend />
               </CardHeader>
               <CardContent>
                 <TrendChart trend={data.trend} />
@@ -130,14 +126,14 @@ function AccountAccess({ billing }: { billing?: Subscription }) {
     <div className="mb-4 grid gap-3 lg:grid-cols-[1.1fr_1.4fr]">
       <Card>
         <CardContent className="pt-5">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Forfait du mois</p>
+          <p className="text-sm text-muted-foreground">Forfait du mois</p>
           <p className="mt-2 text-lg font-medium">{plan ? plan.name : "Aucun forfait"}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {plan
               ? `${billing?.questionsUsed ?? 0} question${(billing?.questionsUsed ?? 0) > 1 ? "s" : ""} envoyée${(billing?.questionsUsed ?? 0) > 1 ? "s" : ""} sur ${plan.questionsPerMonth}. Il en reste ${billing?.questionsRemaining ?? 0}.`
               : "Choisissez un forfait pour envoyer des questions aux modèles."}
           </p>
-          <Button asChild className="mt-4" variant={plan ? "outline" : "default"}>
+          <Button asChild className="mt-4" variant="outline">
             <Link href="/billing">{plan ? "Changer de forfait" : "Choisir un forfait"}</Link>
           </Button>
         </CardContent>
@@ -153,7 +149,7 @@ function AccountAccess({ billing }: { billing?: Subscription }) {
 
 function AccessLink({ href, title, text }: { href: string; title: string; text: string }) {
   return (
-    <Link href={href} className="rounded-xl border border-border bg-card p-4 hover:bg-muted/50">
+    <Link href={href} className="rounded-xl border border-border bg-card p-4 shadow-xs transition-shadow duration-300 ease-out hover:shadow-md">
       <p className="font-medium">{title}</p>
       <p className="mt-1 text-sm leading-5 text-muted-foreground">{text}</p>
     </Link>
@@ -164,8 +160,8 @@ function Kpi({ label, value, delta }: { label: string; value: string; delta: str
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-        <p className="mt-3 font-mono text-3xl tracking-tight">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="mt-2 tabular-nums text-3xl font-semibold tracking-[-0.03em]">{value}</p>
         <p className="mt-2 text-sm text-muted-foreground">{delta}</p>
       </CardContent>
     </Card>

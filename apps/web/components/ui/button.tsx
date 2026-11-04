@@ -2,21 +2,29 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/*
+ * Boutons en pilule (voir DESIGN.md).
+ * - default : l'action principale de l'écran, en orange. Une seule par écran.
+ * - outline : toutes les autres actions.
+ * - ghost : actions discrètes dans une liste (retirer, annuler).
+ * - secondary : action neutre sur fond de surface.
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-[background-color,box-shadow,color] duration-300 ease-out disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground [&_svg]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        outline: "border border-border bg-transparent hover:bg-muted",
-        ghost: "hover:bg-muted",
-        secondary: "bg-muted text-foreground hover:bg-white/10",
+        default:
+          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(17_19_24/0.1),inset_0_1px_0_rgb(255_255_255/0.22)] hover:bg-primary-hover",
+        outline: "border border-border bg-background text-foreground shadow-xs hover:bg-muted",
+        ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
+        secondary: "bg-muted text-foreground hover:bg-border",
       },
       size: {
-        default: "h-9 px-3.5",
-        sm: "h-8 px-2.5 text-xs",
-        lg: "h-11 px-4",
-        icon: "size-9",
+        default: "h-10 px-4",
+        sm: "h-8 px-3 text-xs",
+        lg: "h-12 px-6 text-base",
+        icon: "size-10",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

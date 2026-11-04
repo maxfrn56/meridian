@@ -66,7 +66,7 @@ function SettingsData() {
   if (settings.error) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{settings.error.message}</p>
+        <p className="text-sm font-semibold text-destructive">{settings.error.message}</p>
       </div>
     );
   }
@@ -74,7 +74,6 @@ function SettingsData() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow="Réglages"
         title="Marque, concurrents, requêtes"
         description="Cinq concurrents et soixante questions au maximum. Le forfait décide combien peuvent être envoyées chaque mois."
         action={

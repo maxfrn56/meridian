@@ -123,7 +123,7 @@ function ProspectsData() {
   if (prospects.error) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{prospects.error.message}</p>
+        <p className="text-sm font-semibold text-destructive">{prospects.error.message}</p>
       </div>
     );
   }
@@ -137,7 +137,6 @@ function ProspectsData() {
   return (
     <div className="mx-auto max-w-7xl px-5 py-8">
       <PageHeader
-        eyebrow="Prospection"
         title="Suivi des entreprises"
         description="Fiches partagées de l'équipe commerciale : contact, question posée, date d'envoi et relance."
         action={
@@ -173,7 +172,7 @@ function ProspectsData() {
       <Card>
         <CardContent className="overflow-x-auto px-0">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Entreprise</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
@@ -204,10 +203,10 @@ function ProspectsData() {
                   <td className="px-4 py-3">
                     <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">{item.sentOn || "—"}</td>
+                  <td className="px-4 py-3 tabular-nums text-xs">{item.sentOn || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("font-mono text-xs", due(item) && "text-accent")}>{item.followUpOn || "—"}</span>
-                    {due(item) ? <p className="text-xs text-accent">À faire</p> : null}
+                    <span className={cn("tabular-nums text-xs", due(item) && "font-semibold text-foreground")}>{item.followUpOn || "—"}</span>
+                    {due(item) ? <p className="text-xs font-semibold text-foreground">À faire</p> : null}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{item.nextStep || "—"}</td>
                 </tr>
@@ -298,8 +297,8 @@ function Metric({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <CardContent className="py-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-1 font-mono text-2xl">{value}</p>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="mt-1 tabular-nums text-2xl font-semibold tracking-[-0.02em]">{value}</p>
       </CardContent>
     </Card>
   );
@@ -310,7 +309,7 @@ function FilterButton({ active, onClick, children }: { active: boolean; onClick:
     <button
       type="button"
       onClick={onClick}
-      className={cn("rounded-full border border-border px-3 py-1 text-xs", active ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+      className={cn("rounded-full border border-border px-3 py-1 text-xs", active ? "bg-foreground text-background" : "text-muted-foreground")}
     >
       {children}
     </button>
@@ -339,7 +338,7 @@ function Select({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm"
+      className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-medium shadow-xs outline-none transition-[border-color,box-shadow] duration-300 ease-out focus-visible:border-foreground focus-visible:ring-4 focus-visible:ring-foreground/10"
     >
       {options.map((option) => (
         <option key={option.id} value={option.id}>
