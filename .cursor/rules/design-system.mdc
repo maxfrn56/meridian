@@ -1,0 +1,34 @@
+---
+description: Direction artistique de Meridian. À appliquer à toute création ou modification d'interface (pages, composants, styles, graphiques, animations).
+globs: apps/web/**/*.tsx, apps/web/**/*.ts, apps/web/**/*.css
+alwaysApply: false
+---
+
+# Direction artistique Meridian
+
+La référence complète est @DESIGN.md à la racine du dépôt : lis-la avant de créer ou de modifier une interface. Pour un exemple concret, regarde la landing (`apps/web/app/(site)/`).
+
+## Règles non négociables
+
+- **Un seul accent : l'orange `#FF4F1A`** (`bg-primary`), réservé à la marque du client (ses données, son rang, son score) et à l'action principale d'un écran. Une seule action orange par écran. Le texte posé sur l'orange est en encre `#111318`, jamais en blanc.
+- **Dans une comparaison, le client est la seule donnée en couleur.** Les concurrents utilisent les gris `#8A909A`, `#AEB3BB`, `#C9CDD4`, `#DDE0E5`.
+- **Pas de vert, de rouge, de bleu ni de violet.** Les états se lisent par une icône et un libellé (`Badge` `good` / `warn` / `bad`), les erreurs sont en encre et en semi-gras.
+- **Une seule police : Satoshi**, en 500 et 600, déjà chargée dans `app/layout.tsx`. N'ajoute ni Inter, ni Geist, ni police mono. Utilise `tabular-nums` pour les chiffres.
+- **Fond blanc `#FFFFFF`, surfaces `#F6F7F9`, bordures de 1 px `#E7E9EE`, texte `#111318`, texte secondaire `#6B7280`.** Bord des champs : `#8A909A` (`border-input`).
+- **Pas de label en capitales au-dessus d'un titre.** Le contexte (semaine, secteur) va sous le titre, en `text-muted-foreground`.
+- **Rayons :** 8 px pour les champs, 12 px pour les cartes, 16 px pour les fenêtres et cartes flottantes, pilule pour les boutons et les pastilles. **Espacements** sur une grille de 8 px.
+- **Ombres :** utilise `shadow-xs`, `shadow-md` et `shadow-float`. Pas d'ombre grise ou noire inventée.
+- **Imagerie :** uniquement des fragments d'interface crédibles et le motif des méridiens (`components/landing/globe.tsx`). Pas de photos, de robots, de cerveaux, d'étincelles, de dégradés violet-bleu, de logos d'IA ni d'emojis comme icônes : les icônes viennent de `lucide-react`.
+- **Mouvement :** seul le produit bouge, jamais le texte.
+  - Deux courbes : `cubic-bezier(0.33, 1, 0.68, 1)` pour ce qui apparaît, `cubic-bezier(0.65, 0, 0.35, 1)` pour ce qui se déplace.
+  - Trois durées : 300 ms, 600 ms, 1,2 s.
+  - Seulement `transform`, `opacity` et le tracé des SVG ; aucun changement d'échelle ni rebond.
+  - Chaque séquence se joue une fois. Respecte toujours `prefers-reduced-motion`.
+
+## Comment construire
+
+1. Réutilise d'abord les composants de `apps/web/components/ui/` (`Button`, `Card`, `Input`, `Badge`, `Tabs`, `Label`) et `components/page-header.tsx`.
+2. Pour un graphique, pars de `apps/web/components/charts.tsx` et de ses constantes de couleur.
+3. N'écris pas de couleur en dur (`#...`, `text-blue-500`, `bg-emerald-...`) : utilise les tokens Tailwind définis dans `apps/web/app/globals.css`.
+4. Textes en français, contraste WCAG AA, responsive « mobile first ».
+5. Avant de terminer, déroule la liste de contrôle à la fin de @DESIGN.md.

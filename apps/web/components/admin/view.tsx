@@ -30,7 +30,7 @@ export function AdminView() {
   if (office.error || !office.data) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{office.error?.message ?? "Pilotage indisponible."}</p>
+        <p className="text-sm font-semibold text-destructive">{office.error?.message ?? "Pilotage indisponible."}</p>
         <Button className="mt-4" variant="outline" onClick={() => office.refetch()}>
           Réessayer
         </Button>
@@ -41,7 +41,6 @@ export function AdminView() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow="Administration"
         title="Activité de Meridian"
         description="Comptes clients, forfaits en cours et montant mensuel de ces forfaits. La prospection est dans l'écran suivant."
       />
@@ -64,7 +63,7 @@ export function AdminView() {
               </Badge>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-2xl">{euros(plan.monthlyEur)}</p>
+              <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{euros(plan.monthlyEur)}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {plan.priceEur} € / mois · {plan.subscribers} × {plan.priceEur} €
               </p>
@@ -78,7 +77,7 @@ export function AdminView() {
         </CardHeader>
         <CardContent className="overflow-x-auto px-0">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Espace</th>
@@ -112,8 +111,8 @@ export function AdminView() {
                       <p className="text-xs text-muted-foreground">{client.domain || "Domaine non renseigné"}</p>
                     </td>
                     <td className="px-4 py-3">{client.planName ?? "Aucun"}</td>
-                    <td className="px-4 py-3 font-mono">{client.planName ? `${euros(client.priceEur)} / mois` : "—"}</td>
-                    <td className="px-4 py-3 font-mono">
+                    <td className="px-4 py-3 tabular-nums">{client.planName ? `${euros(client.priceEur)} / mois` : "—"}</td>
+                    <td className="px-4 py-3 tabular-nums">
                       {client.planName ? `${client.questionsUsed} / ${client.questionsPerMonth}` : "—"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{openedOn(client.createdAt)}</td>
@@ -132,8 +131,8 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-        <p className="mt-3 font-mono text-3xl tracking-tight">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="mt-2 tabular-nums text-3xl font-semibold tracking-[-0.03em]">{value}</p>
         <p className="mt-2 text-sm text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>

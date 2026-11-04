@@ -40,7 +40,7 @@ function AuditData() {
   if (audit.error) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{audit.error.message}</p>
+        <p className="text-sm font-semibold text-destructive">{audit.error.message}</p>
         <Button className="mt-4" variant="outline" onClick={() => audit.refetch()}>
           Réessayer
         </Button>
@@ -52,7 +52,6 @@ function AuditData() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow="Audit"
         title="Préparation GEO du site"
         description="Ce que les moteurs peuvent lire sur votre site, et la liste exacte de ce qu'il faut changer pour être cité."
         action={
@@ -69,7 +68,7 @@ function AuditData() {
           </div>
         }
       />
-      {run.error ? <p className="mb-4 text-sm text-destructive">{run.error.message}</p> : null}
+      {run.error ? <p className="mb-4 text-sm font-semibold text-destructive">{run.error.message}</p> : null}
       <DiscoveredCard items={audit.data.discoveredCompetitors} />
       {!report ? (
         <Card>
@@ -95,7 +94,7 @@ function AuditData() {
                 <div key={bar.key}>
                   <div className="mb-1 flex justify-between text-sm">
                     <span>{bar.label}</span>
-                    <span className="font-mono text-muted-foreground">{report[bar.key]}</span>
+                    <span className="tabular-nums text-muted-foreground">{report[bar.key]}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full rounded-full bg-primary" style={{ width: `${report[bar.key]}%` }} />
@@ -208,8 +207,8 @@ function DiscoveredCard({ items }: { items: DiscoveredCompetitor[] }) {
           );
         })}
         {full ? <p className="text-sm text-muted-foreground">Cinq concurrents sont déjà suivis. Retirez-en un dans Réglages pour en ajouter un nouveau.</p> : null}
-        {notice ? <p className="text-sm text-success">{notice}</p> : null}
-        {add.error ? <p className="text-sm text-destructive">{add.error.message}</p> : null}
+        {notice ? <p className="text-sm text-foreground">{notice}</p> : null}
+        {add.error ? <p className="text-sm font-semibold text-destructive">{add.error.message}</p> : null}
       </CardContent>
     </Card>
   );
@@ -242,23 +241,33 @@ function ScoreRing({ score }: { score: number }) {
   const offset = circumference * (1 - score / 100);
   return (
     <svg viewBox="0 0 140 140" className="size-40">
-      <circle cx="70" cy="70" r={radius} fill="none" stroke="rgba(232,239,235,0.1)" strokeWidth="10" />
+      <circle cx="70" cy="70" r={radius} fill="none" stroke="var(--muted)" strokeWidth="8" />
+      {/* Le score du site du client : une donnée de la marque, donc en orange. */}
       <circle
         cx="70"
         cy="70"
         r={radius}
         fill="none"
-        stroke="#3dbea5"
-        strokeWidth="10"
+        stroke="var(--primary)"
+        strokeWidth="8"
         strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={offset}
         transform="rotate(-90 70 70)"
       />
-      <text x="70" y="66" textAnchor="middle" fill="currentColor" fontSize="32" fontFamily="var(--font-geist-mono), monospace">
+      <text
+        x="70"
+        y="70"
+        textAnchor="middle"
+        fill="currentColor"
+        fontSize="34"
+        fontWeight="600"
+        letterSpacing="-1"
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
         {score}
       </text>
-      <text x="70" y="86" textAnchor="middle" fill="#93a29b" fontSize="11">
+      <text x="70" y="88" textAnchor="middle" fill="var(--muted-foreground)" fontSize="12" fontWeight="500">
         / 100
       </text>
     </svg>

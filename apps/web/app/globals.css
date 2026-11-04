@@ -1,42 +1,115 @@
 @import "tailwindcss";
 
+/*
+ * Meridian — tokens de l'application (tableau de bord, connexion, administration).
+ * Mêmes valeurs que la landing (app/(site)/landing.css) ; la référence est DESIGN.md à la racine.
+ *
+ * Règle de couleur : un seul accent, l'orange (--primary). Il est réservé à la marque du client
+ * (ses données dans un graphique, son rang) et à l'action principale d'un écran. Tout le reste est
+ * en encre, en gris et en blanc. Les états (réussi, à corriger, erreur) se lisent par une icône et
+ * un libellé, jamais par une couleur.
+ */
 :root {
-  color-scheme: dark;
-  --background: #0b0e0d;
-  --foreground: #e8efeb;
-  --card: #121716;
-  --muted: #1b2220;
-  --muted-foreground: #93a29b;
-  --border: rgba(232, 239, 235, 0.1);
-  --primary: #3dbea5;
-  --primary-foreground: #04241d;
-  --accent: #e4b15a;
-  --destructive: #e07a6a;
-  --success: #8dceab;
+  color-scheme: light;
+
+  /* Couleurs */
+  --background: #ffffff;
+  --foreground: #111318; /* encre, 18,6:1 */
+  --card: #ffffff;
+  --muted: #f6f7f9; /* surfaces */
+  --muted-foreground: #6b7280; /* texte secondaire, 4,9:1 sur blanc */
+  --border: #e7e9ee;
+  --input: #8a909a; /* bord des champs : 3,2:1 */
+  --grey: #8a909a; /* concurrents dans les graphiques */
+  --grey-soft: #c9cdd4; /* concurrents secondaires, toujours étiquetés */
+  --primary: #ff4f1a; /* marque du client + action principale */
+  --primary-hover: #ff6a3d;
+  --primary-foreground: #111318; /* texte sur orange, 5,7:1 */
+  --primary-soft: rgb(255 79 26 / 0.1);
+  --accent: #6b7280; /* héritage : ne plus utiliser pour signaler, voir DESIGN.md */
+  --destructive: #111318; /* les erreurs sont en encre, avec une icône */
+  --success: #111318;
+
+  /* Ombres, en couches, teintées d'encre */
+  --shadow-xs: 0 1px 2px rgb(17 19 24 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(17 19 24 / 0.04), 0 2px 8px rgb(17 19 24 / 0.04);
+  --shadow-md: 0 1px 2px rgb(17 19 24 / 0.04), 0 4px 12px rgb(17 19 24 / 0.05), 0 12px 32px -8px rgb(17 19 24 / 0.08);
+  --shadow-float: 0 1px 2px rgb(17 19 24 / 0.04), 0 8px 24px -4px rgb(17 19 24 / 0.08),
+    0 24px 64px -16px rgb(17 19 24 / 0.16);
+
+  /* Mouvement */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --motion-fast: 300ms;
+  --motion: 600ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion: 0ms;
+  }
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-satoshi), ui-sans-serif, system-ui, sans-serif;
+  /* Une seule famille : les chiffres utilisent Satoshi en chiffres tabulaires (classe tabular-nums). */
+  --font-mono: var(--font-satoshi), ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
+  --color-grey: var(--grey);
+  --color-grey-soft: var(--grey-soft);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
   --color-accent: var(--accent);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-float: var(--shadow-float);
+  --ease-out: var(--ease-out);
 }
 
 body {
-  background:
-    radial-gradient(ellipse 70% 40% at 0% -10%, rgba(61, 190, 165, 0.14), transparent 55%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Titres serrés, comme sur la landing. */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Contrôles natifs (cases, boutons radio, listes) : en encre plutôt que dans le bleu du navigateur. */
+input[type="checkbox"],
+input[type="radio"],
+select {
+  accent-color: var(--foreground);
+}
+
+/* Méridiens du globe (components/landing/globe.tsx) hors de la landing : aplatis autour de leur centre. */
+.lp-meridian {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+::selection {
+  background: var(--primary-soft);
+  color: var(--foreground);
 }
 
 @media print {
@@ -47,12 +120,14 @@ body {
 
   body {
     background: white !important;
-    color: #14201c !important;
+    color: #111318 !important;
   }
 
   .print-surface {
-    border-color: #d5ddd9 !important;
+    border-color: #e7e9ee !important;
     background: white !important;
-    color: #14201c !important;
+    box-shadow: none !important;
+    color: #111318 !important;
   }
 }
+

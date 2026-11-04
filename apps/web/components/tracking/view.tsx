@@ -42,7 +42,7 @@ function TrackingData() {
   if (tracking.error) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{tracking.error.message}</p>
+        <p className="text-sm font-semibold text-destructive">{tracking.error.message}</p>
         <Button className="mt-4" variant="outline" onClick={() => tracking.refetch()}>
           Réessayer
         </Button>
@@ -61,7 +61,6 @@ function TrackingData() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow="Suivi"
         title="Marque contre concurrents"
         description="Chaque requête est envoyée telle quelle. Une réponse est citée si la marque est nommée ou si son domaine apparaît dans les sources."
         action={
@@ -71,7 +70,7 @@ function TrackingData() {
         }
       />
       <ModeBanner mode={tracking.data.llmMode} />
-      {run.error ? <p className="mb-4 text-sm text-destructive">{run.error.message}</p> : null}
+      {run.error ? <p className="mb-4 text-sm font-semibold text-destructive">{run.error.message}</p> : null}
       <Tabs value={provider} onValueChange={(value) => setProvider(value as Provider | "all")}>
         <TabsList>
           <TabsTrigger value="all">Tous les moteurs</TabsTrigger>
@@ -85,7 +84,7 @@ function TrackingData() {
       <Card className="mt-4 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="border-b border-border text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Requête</th>
                 <th className="px-4 py-3 font-medium">Statut</th>
@@ -148,7 +147,7 @@ function FragmentRow({
     <>
       <tr className={cn("border-b border-border", !active && "opacity-50")}>
         <td className="max-w-sm px-4 py-3">
-          <button type="button" onClick={onToggle} className="text-left hover:text-primary">
+          <button type="button" onClick={onToggle} className="text-left underline-offset-4 hover:underline">
             {prompt}
           </button>
         </td>
@@ -162,7 +161,7 @@ function FragmentRow({
           )}
         </td>
         <td className="px-4 py-3 text-muted-foreground">{run ? providerLabel(run.provider) : "—"}</td>
-        <td className="px-4 py-3 font-mono">{run?.position ?? "—"}</td>
+        <td className="px-4 py-3 tabular-nums">{run?.position ?? "—"}</td>
         <td className={cn("px-4 py-3", sentimentClass)}>{sentimentLabel}</td>
         <td className="px-4 py-3 text-muted-foreground">{run ? run.citations.map((item) => item.domain).slice(0, 3).join(", ") || "—" : "—"}</td>
       </tr>
@@ -172,7 +171,7 @@ function FragmentRow({
             <p className="text-xs text-muted-foreground">
               {run.model} · {run.source === "mock" ? "simulation" : "moteur"} · {dateTimeLabel(run.createdAt)}
             </p>
-            {run.error ? <p className="mt-2 text-sm text-destructive">{run.error}</p> : null}
+            {run.error ? <p className="mt-2 text-sm font-semibold text-destructive">{run.error}</p> : null}
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{run.responseText || "Pas de texte."}</p>
             {run.mentions.length ? (
               <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
@@ -187,7 +186,7 @@ function FragmentRow({
               <ul className="mt-3 space-y-1 text-sm">
                 {run.citations.map((citation) => (
                   <li key={citation.url}>
-                    <a href={citation.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    <a href={citation.url} target="_blank" rel="noreferrer" className="text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground">
                       {citation.title || citation.domain}
                     </a>
                   </li>

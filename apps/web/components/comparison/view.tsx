@@ -24,7 +24,7 @@ export function ComparisonView() {
   if (comparison.error || !comparison.data) {
     return (
       <div className="mx-auto max-w-6xl px-5 py-10">
-        <p className="text-sm text-destructive">{comparison.error?.message ?? "Comparaison indisponible."}</p>
+        <p className="text-sm font-semibold text-destructive">{comparison.error?.message ?? "Comparaison indisponible."}</p>
       </div>
     );
   }
@@ -33,7 +33,7 @@ export function ComparisonView() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        eyebrow={data.week ? `Semaine du ${weekLabel(data.week)}` : "Comparaison"}
+        meta={data.week ? `Semaine du ${weekLabel(data.week)}` : undefined}
         title="Marque contre concurrents"
         description={`${data.runs} réponses de la dernière semaine. Quatre lectures : présence, rang, ton et sources. Aucun nouvel appel n’est lancé.`}
       />
@@ -74,7 +74,7 @@ export function ComparisonView() {
         </CardHeader>
         <CardContent className="overflow-x-auto px-0">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Marque</th>
                 <th className="px-4 py-3 font-medium">Visibilité</th>
@@ -94,8 +94,8 @@ export function ComparisonView() {
                       <p className="font-medium">{entity.name}</p>
                       <p className="text-xs text-muted-foreground">{entity.domain}</p>
                     </td>
-                    <td className="px-4 py-3 font-mono">{percent(row.visibility)}</td>
-                    <td className="px-4 py-3 font-mono">{positionLabel(row.averagePosition)}</td>
+                    <td className="px-4 py-3 tabular-nums">{percent(row.visibility)}</td>
+                    <td className="px-4 py-3 tabular-nums">{positionLabel(row.averagePosition)}</td>
                     <td className={cn("px-4 py-3", tone.className)}>
                       {tone.label}
                       {provider === "all" ? (
@@ -104,8 +104,8 @@ export function ComparisonView() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 font-mono">{percent(row.ownSourceRate)}</td>
-                    <td className="px-4 py-3 font-mono">{percent(row.sourcedRate)}</td>
+                    <td className="px-4 py-3 tabular-nums">{percent(row.ownSourceRate)}</td>
+                    <td className="px-4 py-3 tabular-nums">{percent(row.sourcedRate)}</td>
                   </tr>
                 );
               })}
@@ -120,7 +120,7 @@ export function ComparisonView() {
         </CardHeader>
         <CardContent className="overflow-x-auto px-0">
           <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Question</th>
                 {data.entities.map((entity) => (
@@ -148,7 +148,7 @@ export function ComparisonView() {
                       return chosen;
                     }, null);
                     return (
-                      <td key={cell.name} className="px-4 py-3 font-mono text-xs">
+                      <td key={cell.name} className="px-4 py-3 tabular-nums text-xs">
                         {best ? positionLabel(best.position) : "—"}
                       </td>
                     );
@@ -166,7 +166,7 @@ export function ComparisonView() {
         </CardHeader>
         <CardContent className="overflow-x-auto px-0">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="text-xs font-medium text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Domaine</th>
                 <th className="px-4 py-3 font-medium">Citations</th>
@@ -182,9 +182,9 @@ export function ComparisonView() {
                     <p className="font-medium">{source.domain}</p>
                     {source.ownedBy ? <p className="text-xs text-muted-foreground">Domaine de {source.ownedBy}</p> : null}
                   </td>
-                  <td className="px-4 py-3 font-mono">{source.citations}</td>
-                  <td className="px-4 py-3 font-mono">{source.runsWithBrand}</td>
-                  <td className={cn("px-4 py-3 font-mono", source.runsWithoutBrand > 0 && "text-accent")}>{source.runsWithoutBrand}</td>
+                  <td className="px-4 py-3 tabular-nums">{source.citations}</td>
+                  <td className="px-4 py-3 tabular-nums">{source.runsWithBrand}</td>
+                  <td className={cn("px-4 py-3 tabular-nums", source.runsWithoutBrand > 0 && "font-semibold text-foreground")}>{source.runsWithoutBrand}</td>
                   <td className="px-4 py-3 text-muted-foreground">{source.entities.join(", ") || "—"}</td>
                 </tr>
               ))}
@@ -213,8 +213,8 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-        <p className="mt-3 font-mono text-3xl tracking-tight">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="mt-2 tabular-nums text-3xl font-semibold tracking-[-0.03em]">{value}</p>
         <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
@@ -228,7 +228,7 @@ function Filter({ active, onClick, children }: { active: boolean; onClick: () =>
       onClick={onClick}
       className={cn(
         "rounded-full border border-border px-3 py-1 text-xs",
-        active ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+        active ? "bg-foreground text-background" : "text-muted-foreground",
       )}
     >
       {children}
