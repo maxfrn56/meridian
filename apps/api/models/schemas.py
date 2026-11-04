@@ -30,6 +30,23 @@ class LoginIn(APIModel):
     password: str
 
 
+class EmailIn(APIModel):
+    email: str = Field(min_length=5, max_length=160)
+
+
+class TokenIn(APIModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class ResetIn(APIModel):
+    token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class MessageOut(APIModel):
+    message: str
+
+
 ProspectStatus = Literal["a_contacter", "envoye", "relance", "rdv", "devis", "gagne", "perdu"]
 ProspectChannel = Literal["email", "linkedin", "telephone"]
 

@@ -37,9 +37,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/geo${path}`, { ...init, headers });
   if (response.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
-    if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/register")) {
-      window.location.assign("/login");
-    }
+    const path = window.location.pathname;
+    const publicPage = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"].some((item) =>
+      path.startsWith(item),
+    );
+    if (!publicPage) window.location.assign("/login");
   }
   if (!response.ok) {
     const body = await response.json().catch(() => null);
@@ -57,9 +59,37 @@ export function login(email: string, password: string) {
 }
 
 export function register(name: string, email: string, password: string) {
-  return api<AuthResponse>("/auth/register", {
+  return api<{ message: string }>("/auth/register", {
     method: "POST",
     body: JSON.stringify({ name, email, password }),
+  });
+}
+
+export function resendVerification(email: string) {
+  return api<{ message: string }>("/auth/resend", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function verifyEmail(token: string) {
+  return api<{ message: string }>("/auth/verify", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function requestPasswordReset(email: string) {
+  return api<{ message: string }>("/auth/forgot", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(token: string, password: string) {
+  return api<{ message: string }>("/auth/reset", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
   });
 }
 

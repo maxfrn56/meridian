@@ -9,9 +9,9 @@ from store import User, Workspace, store
 def current_user(authorization: str | None = Header(default=None)) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Authentification requise.")
-    user_id = read_token(authorization.split(" ", 1)[1].strip())
-    user = store.user_by_id(user_id) if user_id else None
-    if user is None:
+    parsed = read_token(authorization.split(" ", 1)[1].strip())
+    user = store.user_by_id(parsed[0]) if parsed else None
+    if user is None or parsed is None or user.session_version != parsed[1]:
         raise HTTPException(status_code=401, detail="Session expirée.")
     return user
 

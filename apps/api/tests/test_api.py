@@ -1,4 +1,6 @@
 import json
+import os
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,20 +8,28 @@ from fastapi.testclient import TestClient
 from config import settings
 from main import app
 from seed import DEMO_EMAIL, DEMO_PASSWORD, seed_demo
+from services.mail import OUTBOX
 from store import store
 
 
 @pytest.fixture()
 def client():
     previous = settings.mock_llm
+    previous_resend = os.environ.pop("RESEND_API_KEY", None)
+    os.environ["MAIL_CAPTURE"] = "true"
     object.__setattr__(settings, "mock_llm", "true")
     store.reset()
+    OUTBOX.clear()
     seed_demo(store)
     try:
         with TestClient(app) as test_client:
             yield test_client
     finally:
         object.__setattr__(settings, "mock_llm", previous)
+        os.environ.pop("MAIL_CAPTURE", None)
+        if previous_resend is not None:
+            os.environ["RESEND_API_KEY"] = previous_resend
+        OUTBOX.clear()
 
 
 def _token(client: TestClient) -> str:
@@ -151,12 +161,30 @@ def test_prospects_crud_in_database(client: TestClient):
     assert names == ["Purenat"]
 
 
+def _link_token() -> str:
+    match = re.search(r"token=([A-Za-z0-9_\-]+)", OUTBOX[-1]["body"])
+    assert match
+    return match.group(1)
+
+
+def _confirmed_token(client: TestClient, email: str, password: str) -> str:
+    assert client.post("/api/v1/auth/verify", json={"token": _link_token()}).status_code == 200
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200
+    return login.json()["token"]
+
+
 def test_prospects_are_private_to_their_owner(client: TestClient):
     demo = {"Authorization": f"Bearer {_token(client)}"}
     prospect_id = client.get("/api/v1/prospects", headers=demo).json()["items"][0]["id"]
-    other = client.post(
-        "/api/v1/auth/register", json={"name": "Autre", "email": "autre@example.com", "password": "motdepasse"}
-    ).json()["token"]
+    assert (
+        client.post(
+            "/api/v1/auth/register",
+            json={"name": "Autre", "email": "autre@example.com", "password": "motdepasse8"},
+        ).status_code
+        == 200
+    )
+    other = _confirmed_token(client, "autre@example.com", "motdepasse8")
     intruder = {"Authorization": f"Bearer {other}"}
     assert client.get("/api/v1/prospects", headers=intruder).json()["items"] == []
     assert client.delete(f"/api/v1/prospects/{prospect_id}", headers=intruder).status_code == 404
@@ -164,16 +192,16 @@ def test_prospects_are_private_to_their_owner(client: TestClient):
 
 def test_data_survives_an_api_restart(client: TestClient):
     created = client.post(
-        "/api/v1/auth/register", json={"name": "Acme", "email": "acme@example.com", "password": "motdepasse"}
+        "/api/v1/auth/register", json={"name": "Acme", "email": "acme@example.com", "password": "motdepasse8"}
     )
     assert created.status_code == 200
-    headers = {"Authorization": f"Bearer {created.json()['token']}"}
+    headers = {"Authorization": f"Bearer {_confirmed_token(client, 'acme@example.com', 'motdepasse8')}"}
     payload = client.get("/api/v1/settings", headers=headers).json()
     payload.update(domain="acme.fr", sector="Logiciel", queries=[{"prompt": "Meilleur outil GEO ?", "active": True}])
     assert client.put("/api/v1/settings", headers=headers, json=payload).status_code == 200
     # Un nouveau cycle de vie = un redémarrage : rien n'est gardé en mémoire entre les deux.
     with TestClient(app) as restarted:
-        login = restarted.post("/api/v1/auth/login", json={"email": "acme@example.com", "password": "motdepasse"})
+        login = restarted.post("/api/v1/auth/login", json={"email": "acme@example.com", "password": "motdepasse8"})
         assert login.status_code == 200
         settings_after = restarted.get(
             "/api/v1/settings", headers={"Authorization": f"Bearer {login.json()['token']}"}
@@ -250,3 +278,34 @@ def test_unreadable_legacy_file_does_not_block_startup(tmp_path):
     legacy.write_text("{ pas du json", encoding="utf-8")
     assert import_legacy_file(legacy) == 0
     assert legacy.exists()
+
+
+def test_signup_requires_email_confirmation_and_password_reset(client: TestClient):
+    email = "ada@example.com"
+    created = client.post(
+        "/api/v1/auth/register",
+        json={"name": "Ada Martin", "email": email, "password": "meridian8"},
+    )
+    assert created.status_code == 200
+    assert "boîte mail" in created.json()["message"]
+    blocked = client.post("/api/v1/auth/login", json={"email": email, "password": "meridian8"})
+    assert blocked.status_code == 403
+    confirmed = client.post("/api/v1/auth/verify", json={"token": _link_token()})
+    assert confirmed.status_code == 200
+    reused = client.post("/api/v1/auth/verify", json={"token": _link_token()})
+    assert reused.status_code == 400
+    session = client.post("/api/v1/auth/login", json={"email": email, "password": "meridian8"})
+    assert session.status_code == 200
+    old_token = session.json()["token"]
+
+    unknown = client.post("/api/v1/auth/forgot", json={"email": "absent@example.com"})
+    assert unknown.status_code == 200
+    assert unknown.json()["message"] == client.post("/api/v1/auth/forgot", json={"email": email}).json()["message"]
+    weak = client.post("/api/v1/auth/reset", json={"token": _link_token(), "password": "meridian"})
+    assert weak.status_code == 422
+    reset = client.post("/api/v1/auth/reset", json={"token": _link_token(), "password": "meridian9"})
+    assert reset.status_code == 200
+    stale = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {old_token}"})
+    assert stale.status_code == 401
+    again = client.post("/api/v1/auth/login", json={"email": email, "password": "meridian9"})
+    assert again.status_code == 200

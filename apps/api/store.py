@@ -34,6 +34,14 @@ class User:
     name: str
     email: str
     password_hash: str
+    email_verified: bool = True
+    session_version: int = 0
+    verify_token_hash: str = ""
+    verify_expires_at: datetime | None = None
+    reset_token_hash: str = ""
+    reset_expires_at: datetime | None = None
+    last_verify_mail_at: datetime | None = None
+    last_reset_mail_at: datetime | None = None
 
 
 @dataclass
@@ -98,8 +106,25 @@ def _current_month() -> str:
     return date.today().strftime("%Y-%m")
 
 
+def _optional_time(value: datetime | None) -> datetime | None:
+    return _aware(value) if value else None
+
+
 def _user(row: UserRow) -> User:
-    return User(id=row.id, name=row.name, email=row.email, password_hash=row.password_hash)
+    return User(
+        id=row.id,
+        name=row.name,
+        email=row.email,
+        password_hash=row.password_hash,
+        email_verified=row.email_verified,
+        session_version=row.session_version,
+        verify_token_hash=row.verify_token_hash,
+        verify_expires_at=_optional_time(row.verify_expires_at),
+        reset_token_hash=row.reset_token_hash,
+        reset_expires_at=_optional_time(row.reset_expires_at),
+        last_verify_mail_at=_optional_time(row.last_verify_mail_at),
+        last_reset_mail_at=_optional_time(row.last_reset_mail_at),
+    )
 
 
 def _run(row: TrackingRunRow) -> StoredRun:
@@ -166,7 +191,14 @@ class Store:
             if exists:
                 raise ValueError("Un compte existe déjà avec cet e-mail.")
             session.add(
-                UserRow(id=user.id, name=user.name, email=user.email.lower(), password_hash=user.password_hash)
+                UserRow(
+                    id=user.id,
+                    name=user.name,
+                    email=user.email.lower(),
+                    password_hash=user.password_hash,
+                    email_verified=user.email_verified,
+                    session_version=user.session_version,
+                )
             )
             session.add(
                 WorkspaceRow(
@@ -189,6 +221,60 @@ class Store:
                     ],
                 )
             )
+
+    def delete_user(self, user_id: str) -> None:
+        with self._session() as session, session.begin():
+            session.execute(delete(UserRow).where(UserRow.id == user_id))
+
+    def stage_token(self, user_id: str, purpose: str, token_hash: str, expires_at: datetime, *, force: bool) -> bool:
+        with self._session() as session, session.begin():
+            row = session.get(UserRow, user_id)
+            if row is None:
+                return False
+            now = datetime.now(timezone.utc)
+            last_mail = row.last_verify_mail_at if purpose == "verify" else row.last_reset_mail_at
+            if not force and last_mail and (now - _aware(last_mail)).total_seconds() < 60:
+                return False
+            if purpose == "verify":
+                row.verify_token_hash = token_hash
+                row.verify_expires_at = expires_at
+            else:
+                row.reset_token_hash = token_hash
+                row.reset_expires_at = expires_at
+            return True
+
+    def mark_mail_sent(self, user_id: str, purpose: str) -> None:
+        with self._session() as session, session.begin():
+            row = session.get(UserRow, user_id)
+            if row is None:
+                return
+            stamp = datetime.now(timezone.utc)
+            if purpose == "verify":
+                row.last_verify_mail_at = stamp
+            else:
+                row.last_reset_mail_at = stamp
+
+    def confirm_email(self, token_hash: str) -> bool:
+        with self._session() as session, session.begin():
+            row = session.scalar(select(UserRow).where(UserRow.verify_token_hash == token_hash))
+            if row is None or not row.verify_expires_at or _aware(row.verify_expires_at) < datetime.now(timezone.utc):
+                return False
+            row.email_verified = True
+            row.verify_token_hash = ""
+            row.verify_expires_at = None
+            return True
+
+    def reset_password(self, token_hash: str, password_hash: str) -> bool:
+        with self._session() as session, session.begin():
+            row = session.scalar(select(UserRow).where(UserRow.reset_token_hash == token_hash))
+            if row is None or not row.reset_expires_at or _aware(row.reset_expires_at) < datetime.now(timezone.utc):
+                return False
+            row.password_hash = password_hash
+            row.email_verified = True
+            row.session_version += 1
+            row.reset_token_hash = ""
+            row.reset_expires_at = None
+            return True
 
     # Espace client
 
@@ -245,6 +331,84 @@ class Store:
             self._roll_period(row)
             session.flush()
             return self._load(session, row)
+
+    def delete_user(self, user_id: str) -> None:
+        with self._lock:
+            user = self.users.pop(user_id, None)
+            if user is None:
+                return
+            self.by_email.pop(user.email.lower(), None)
+            self.workspaces.pop(user_id, None)
+            self._drop(self.verify_index, user_id)
+            self._drop(self.reset_index, user_id)
+
+    def stage_token(self, user_id: str, purpose: str, token_hash: str, expires_at: datetime, *, force: bool) -> bool:
+        with self._lock:
+            user = self.users[user_id]
+            now = datetime.now(timezone.utc)
+            last_mail = user.last_verify_mail_at if purpose == "verify" else user.last_reset_mail_at
+            if not force and last_mail and (now - last_mail).total_seconds() < 60:
+                return False
+            index = self.verify_index if purpose == "verify" else self.reset_index
+            self._drop(index, user_id)
+            if purpose == "verify":
+                user.verify_token_hash = token_hash
+                user.verify_expires_at = expires_at
+            else:
+                user.reset_token_hash = token_hash
+                user.reset_expires_at = expires_at
+            index[token_hash] = user_id
+            return True
+
+    def mark_mail_sent(self, user_id: str, purpose: str) -> None:
+        with self._lock:
+            user = self.users.get(user_id)
+            if user is None:
+                return
+            stamp = datetime.now(timezone.utc)
+            if purpose == "verify":
+                user.last_verify_mail_at = stamp
+            else:
+                user.last_reset_mail_at = stamp
+
+    def confirm_email(self, token_hash: str) -> bool:
+        with self._lock:
+            user = self._user_for_token(self.verify_index, token_hash, "verify")
+            if user is None:
+                return False
+            user.email_verified = True
+            user.verify_token_hash = ""
+            user.verify_expires_at = None
+            self.verify_index.pop(token_hash, None)
+            return True
+
+    def reset_password(self, token_hash: str, password_hash: str) -> bool:
+        with self._lock:
+            user = self._user_for_token(self.reset_index, token_hash, "reset")
+            if user is None:
+                return False
+            user.password_hash = password_hash
+            user.email_verified = True
+            user.session_version += 1
+            user.reset_token_hash = ""
+            user.reset_expires_at = None
+            self.reset_index.pop(token_hash, None)
+            return True
+
+    def _user_for_token(self, index: dict[str, str], token_hash: str, purpose: str) -> User | None:
+        user_id = index.get(token_hash)
+        user = self.users.get(user_id) if user_id else None
+        if user is None:
+            return None
+        stored = user.verify_token_hash if purpose == "verify" else user.reset_token_hash
+        expires = user.verify_expires_at if purpose == "verify" else user.reset_expires_at
+        if stored != token_hash or expires is None or expires < datetime.now(timezone.utc):
+            return None
+        return user
+
+    def _drop(self, index: dict[str, str], user_id: str) -> None:
+        for key in [key for key, value in index.items() if value == user_id]:
+            del index[key]
 
     def update_settings(
         self,

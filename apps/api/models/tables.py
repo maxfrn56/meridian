@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -18,11 +18,23 @@ class Base(DeclarativeBase):
 
 class UserRow(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        Index("ix_users_verify_token_hash", "verify_token_hash"),
+        Index("ix_users_reset_token_hash", "reset_token_hash"),
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(200))
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    verify_token_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    verify_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    reset_token_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_verify_mail_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_reset_mail_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     workspace: Mapped[WorkspaceRow | None] = relationship(back_populates="user", cascade="all, delete-orphan")

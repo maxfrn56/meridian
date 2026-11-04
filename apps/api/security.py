@@ -24,9 +24,16 @@ def verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(digest.hex(), digest_hex)
 
 
-def issue_token(user_id: str) -> str:
+def password_is_strong(password: str) -> bool:
+    if not 8 <= len(password) <= 128:
+        return False
+    return any(character.isalpha() for character in password) and any(character.isdigit() for character in password)
+
+
+def issue_token(user_id: str, session_version: int = 0) -> str:
     payload = {
         "sub": user_id,
+        "ver": session_version,
         "exp": int(time.time()) + TOKEN_TTL_SECONDS,
     }
     raw = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
@@ -34,7 +41,7 @@ def issue_token(user_id: str) -> str:
     return f"{raw}.{signature}"
 
 
-def read_token(token: str) -> str | None:
+def read_token(token: str) -> tuple[str, int] | None:
     if "." not in token:
         return None
     raw, signature = token.rsplit(".", 1)
@@ -49,4 +56,7 @@ def read_token(token: str) -> str | None:
     if int(payload.get("exp", 0)) < time.time():
         return None
     subject = payload.get("sub")
-    return subject if isinstance(subject, str) else None
+    if not isinstance(subject, str):
+        return None
+    version = payload.get("ver", 0)
+    return subject, version if isinstance(version, int) else 0

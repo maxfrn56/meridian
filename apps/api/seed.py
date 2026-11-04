@@ -112,6 +112,7 @@ def seed_demo(target: store.__class__ | None = None) -> None:
         name="Camille Martin",
         email=DEMO_EMAIL,
         password_hash=hash_password(DEMO_PASSWORD),
+        email_verified=True,
     )
     competitors = [
         Competitor(id=uuid.uuid5(uuid.NAMESPACE_URL, domain).hex, name=name, domain=domain)
