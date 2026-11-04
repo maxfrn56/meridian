@@ -38,16 +38,27 @@ Les prompts de suivi sont envoyés tels quels : la marque n'est pas injectée da
 
 L'audit lit le HTML (BeautifulSoup), le JSON-LD, `robots.txt` et `/llms.txt`. Playwright n'est utilisé que si `USE_PLAYWRIGHT=true` (`pip install playwright && playwright install chromium`).
 
-Le suivi s'exécute dans le process API. `services/tasks.py` prépare Celery pour le jour où PostgreSQL est partagé entre l'API et les workers. Redis et Postgres se lancent avec `docker compose up -d`.
+Le suivi s'exécute dans le process API. `services/tasks.py` prépare Celery : l'état étant en base, des workers séparés peuvent le lire s'ils pointent vers le même PostgreSQL. Redis et Postgres se lancent avec `docker compose up -d`.
 
 ## Base de données
 
-Le schéma Prisma est dans `apps/web/prisma/schema.prisma`, l'URL Postgres dans `apps/web/prisma.config.ts`. Tables : users, workspaces, brands, competitors, queries, tracking runs, citations, mentions, audits. L'API du MVP garde l'état en mémoire pour démarrer sans base : les contrats sont les mêmes que le schéma.
+L'API possède la base, via SQLAlchemy. Les tables sont dans `apps/api/models/tables.py`, les migrations Alembic dans `apps/api/migrations/`. L'API applique les migrations à chaque démarrage.
+
+- **En local**, sans `DATABASE_URL`, tout va dans `apps/api/data/meridian.db` (SQLite, ignoré par Git). Supprimez ce fichier pour repartir de zéro.
+- **Avec PostgreSQL**, posez `DATABASE_URL` (`postgresql://…` ou `postgres://…`, le pilote psycopg est ajouté tout seul). En local : `docker compose up -d` puis `DATABASE_URL=postgresql://geo:geo@localhost:5432/geo`. Sur Railway : ajoutez un service Postgres et référencez sa variable `DATABASE_URL`.
+- `SEED_DEMO=false` en production, sinon le compte démo est créé avec son mot de passe public.
+
+Tables : users, workspaces (la marque suivie et le forfait), competitors, queries, tracking_runs, citations, audits, prospects.
+
+Pour faire évoluer le schéma : modifiez `tables.py`, puis générez la migration et relisez-la avant de la committer.
 
 ```bash
-docker compose up -d
-cd apps/web && npx prisma db push
+make migration m="ajout colonne x"
 ```
+
+Sous Windows sans `make` : `cd apps/api && .venv/Scripts/alembic.exe revision --autogenerate -m "ajout colonne x"`.
+
+Un ancien `apps/api/data/prospects.json` est repris dans la base au premier démarrage, puis renommé en `prospects.json.imported`.
 
 ## Tests
 
