@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from models.schemas import AuthOut, EmailIn, LoginIn, MessageOut, RegisterIn, ResetIn, TokenIn, UserOut
 from routers.deps import current_user
 from security import hash_password, issue_token, password_is_strong, verify_password
+from services.admins import grant_listed_admin
 from services.mail import MailError, app_base_url, mail_configured, send_email
 from store import User, Workspace, store
 
@@ -27,6 +28,7 @@ def _user_out(user: User) -> UserOut:
         id=user.id,
         name=user.name,
         email=user.email,
+        role="admin" if user.role == "admin" else "client",
         workspace_name=workspace.name if workspace else "",
         brand_name=workspace.brand_name if workspace else "",
         domain=workspace.domain if workspace else "",
@@ -108,23 +110,36 @@ def register(payload: RegisterIn) -> MessageOut:
         password_hash=hash_password(payload.password),
         email_verified=False,
     )
-    store.add_user(
-        user,
-        Workspace(
-            id=uuid.uuid4().hex,
-            user_id=user.id,
-            name=name,
-            brand_name=name,
-            domain="",
-            sector="",
-        ),
-    )
+    try:
+        store.add_user(
+            user,
+            Workspace(
+                id=uuid.uuid4().hex,
+                user_id=user.id,
+                name=name,
+                brand_name=name,
+                domain="",
+                sector="",
+            ),
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     try:
         _send_verification(user, force=True)
     except HTTPException:
-        store.delete_user(user.id)
+        _discard_new_account(user.id)
         raise
+    except Exception as error:
+        _discard_new_account(user.id)
+        raise HTTPException(status_code=503, detail="L'e-mail de confirmation n'a pas pu être envoyé.") from error
     return MessageOut(message="Consultez votre boîte mail pour confirmer l'inscription. Le lien expire dans 24 heures.")
+
+
+def _discard_new_account(user_id: str) -> None:
+    try:
+        store.delete_user(user_id)
+    except Exception:
+        return
 
 
 @router.post("/login", response_model=AuthOut)
@@ -132,6 +147,7 @@ def login(payload: LoginIn) -> AuthOut:
     user = store.user_by_email(payload.email.strip().lower())
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Identifiants incorrects.")
+    user = grant_listed_admin(user)
     if not user.email_verified:
         raise HTTPException(status_code=403, detail="Confirmez votre adresse e-mail avant de vous connecter.")
     return AuthOut(token=issue_token(user.id, user.session_version), user=_user_out(user))

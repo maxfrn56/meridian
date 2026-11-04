@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import Header, HTTPException
 
 from security import read_token
+from services.admins import grant_listed_admin
 from store import User, Workspace, store
 
 
@@ -13,6 +14,13 @@ def current_user(authorization: str | None = Header(default=None)) -> User:
     user = store.user_by_id(parsed[0]) if parsed else None
     if user is None or parsed is None or user.session_version != parsed[1]:
         raise HTTPException(status_code=401, detail="Session expirée.")
+    return grant_listed_admin(user)
+
+
+def current_admin(authorization: str | None = Header(default=None)) -> User:
+    user = current_user(authorization)
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Cette partie est réservée à l'administration.")
     return user
 
 

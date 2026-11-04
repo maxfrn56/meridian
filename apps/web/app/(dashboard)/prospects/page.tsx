@@ -1,13 +1,7 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
 export const instant = false;
-import { ProspectsView } from "@/components/prospects/view";
-import { PageFallback } from "@/components/fallback";
 
-export default function ProspectsPage() {
-  return (
-    <Suspense fallback={<PageFallback />}>
-      <ProspectsView />
-    </Suspense>
-  );
+export default function ProspectsRedirect() {
+  redirect("/admin/prospects");
 }

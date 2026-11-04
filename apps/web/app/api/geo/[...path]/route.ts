@@ -3,8 +3,6 @@ import { NextRequest } from "next/server";
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8000";
 
 async function proxy(request: NextRequest, path: string[]) {
-  const target = new URL(`/api/v1/${path.join("/")}`, API_URL);
-  target.search = request.nextUrl.search;
   const headers = new Headers();
   const authorization = request.headers.get("authorization");
   if (authorization) headers.set("authorization", authorization);
@@ -13,6 +11,9 @@ async function proxy(request: NextRequest, path: string[]) {
   const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.text();
 
   try {
+    const base = API_URL.trim() || "http://127.0.0.1:8000";
+    const target = new URL(`/api/v1/${path.join("/")}`, base);
+    target.search = request.nextUrl.search;
     const response = await fetch(target, {
       method: request.method,
       headers,
@@ -45,6 +46,11 @@ export async function POST(request: NextRequest, context: Context) {
 }
 
 export async function PUT(request: NextRequest, context: Context) {
+  const { path } = await context.params;
+  return proxy(request, path);
+}
+
+export async function DELETE(request: NextRequest, context: Context) {
   const { path } = await context.params;
   return proxy(request, path);
 }

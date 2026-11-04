@@ -49,4 +49,11 @@ def send_email(recipient: str, subject: str, body: str) -> None:
     except httpx.HTTPError as error:
         raise MailError("L'e-mail n'a pas pu être envoyé.") from error
     if response.status_code >= 400:
-        raise MailError("Resend a refusé l'envoi. Vérifiez la clé API et l'adresse d'expéditeur.")
+        detail = "Resend a refusé l'envoi. Vérifiez la clé API et l'adresse d'expéditeur."
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict) and isinstance(payload.get("message"), str):
+            detail = f"Resend a refusé l'envoi : {payload['message']}"[:300]
+        raise MailError(detail)

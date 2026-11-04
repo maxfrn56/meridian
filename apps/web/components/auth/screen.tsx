@@ -3,7 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, TOKEN_KEY, login, register, resendVerification } from "@/lib/api";
+import { ApiError, TOKEN_KEY, api, login, register, resendVerification } from "@/lib/api";
+import type { User } from "@/lib/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -54,7 +55,10 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem(TOKEN_KEY)) router.replace("/dashboard");
+    if (!localStorage.getItem(TOKEN_KEY)) return;
+    api<User>("/auth/me")
+      .then((user) => router.replace(user.role === "admin" ? "/admin" : "/dashboard"))
+      .catch(() => undefined);
   }, [router]);
 
   async function submit(event: React.FormEvent) {
@@ -72,7 +76,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
       if (mode === "login") {
         const result = await login(email, password);
         localStorage.setItem(TOKEN_KEY, result.token);
-        router.push("/dashboard");
+        router.push(result.user.role === "admin" ? "/admin" : "/dashboard");
         return;
       }
       const result = await register(name, email, password);

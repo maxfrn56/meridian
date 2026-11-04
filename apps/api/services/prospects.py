@@ -7,8 +7,6 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from db import session_scope
 from models.schemas import ProspectIn, ProspectListOut, ProspectOut, ProspectSummary
 from models.tables import ProspectRow, UserRow
@@ -89,9 +87,9 @@ def _summary(items: list[ProspectOut]) -> ProspectSummary:
     )
 
 
-def list_prospects(user_id: str) -> ProspectListOut:
+def list_prospects() -> ProspectListOut:
     with session_scope() as session:
-        rows = session.scalars(select(ProspectRow).where(ProspectRow.user_id == user_id)).all()
+        rows = session.scalars(select(ProspectRow)).all()
         items = [_out(row) for row in rows]
     items.sort(key=lambda item: (item.follow_up_on or "9999", item.company.lower()))
     return ProspectListOut(items=items, summary=_summary(items))
@@ -107,14 +105,9 @@ def create_prospect(user_id: str, payload: ProspectIn) -> ProspectOut:
         return _out(row)
 
 
-def _owned(session: Session, user_id: str, prospect_id: str) -> ProspectRow | None:
-    row = session.get(ProspectRow, prospect_id)
-    return row if row is not None and row.user_id == user_id else None
-
-
-def update_prospect(user_id: str, prospect_id: str, payload: ProspectIn) -> ProspectOut | None:
+def update_prospect(prospect_id: str, payload: ProspectIn) -> ProspectOut | None:
     with session_scope() as session:
-        row = _owned(session, user_id, prospect_id)
+        row = session.get(ProspectRow, prospect_id)
         if row is None:
             return None
         _apply(row, payload)
@@ -123,9 +116,9 @@ def update_prospect(user_id: str, prospect_id: str, payload: ProspectIn) -> Pros
         return _out(row)
 
 
-def delete_prospect(user_id: str, prospect_id: str) -> bool:
+def delete_prospect(prospect_id: str) -> bool:
     with session_scope() as session:
-        row = _owned(session, user_id, prospect_id)
+        row = session.get(ProspectRow, prospect_id)
         if row is None:
             return False
         session.delete(row)

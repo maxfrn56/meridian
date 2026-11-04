@@ -139,7 +139,7 @@ function ProspectsData() {
       <PageHeader
         eyebrow="Prospection"
         title="Suivi des entreprises"
-        description="Chaque fiche garde le contact, la question posée, la date d’envoi et la relance prévue. Les données restent sur cette machine."
+        description="Fiches partagées de l'équipe commerciale : contact, question posée, date d'envoi et relance."
         action={
           <Button
             onClick={() => {

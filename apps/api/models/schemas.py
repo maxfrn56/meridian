@@ -106,9 +106,44 @@ class UserOut(APIModel):
     id: str
     name: str
     email: str
+    role: Literal["client", "admin"] = "client"
     workspace_name: str
     brand_name: str
     domain: str
+
+
+class AdminClientOut(APIModel):
+    id: str
+    name: str
+    email: str
+    email_verified: bool
+    created_at: datetime
+    workspace_name: str
+    brand_name: str
+    domain: str
+    plan_id: str | None
+    plan_name: str | None
+    price_eur: int
+    questions_used: int
+    questions_per_month: int
+
+
+class AdminPlanStatOut(APIModel):
+    id: str
+    name: str
+    price_eur: int
+    subscribers: int
+    monthly_eur: int
+
+
+class AdminOverviewOut(APIModel):
+    accounts: int
+    verified_accounts: int
+    subscriptions: int
+    monthly_revenue_eur: int
+    questions_used: int
+    plans: list[AdminPlanStatOut]
+    clients: list[AdminClientOut]
 
 
 class AuthOut(APIModel):

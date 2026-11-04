@@ -2,10 +2,35 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+# Python 3.9 ne sait pas évaluer `datetime | None`. SQLAlchemy le fait au chargement des tables.
+if sys.version_info < (3, 10):
+    import ast
+
+    import sqlalchemy.util.typing as _sa_typing
+    from eval_type_backport.eval_type_backport import BackportTransformer
+
+    _eval_expression = _sa_typing.eval_expression
+
+    def _eval_annotation(expression, module_name, *, locals_=None, in_class=None):
+        try:
+            return _eval_expression(expression, module_name, locals_=locals_, in_class=in_class)
+        except NameError:
+            namespace = dict(sys.modules[module_name].__dict__)
+            if in_class is not None:
+                namespace.update(in_class.__dict__)
+            if locals_:
+                namespace.update(locals_)
+            tree = ast.parse(expression, mode="eval")
+            transformer = BackportTransformer(namespace, None)
+            return transformer.eval_type(transformer.visit(tree))
+
+    _sa_typing.eval_expression = _eval_annotation
 
 
 def utcnow() -> datetime:
@@ -27,6 +52,7 @@ class UserRow(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(16), default="client", server_default="client")
     email_verified: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     session_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     verify_token_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")

@@ -10,14 +10,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageFallback } from "@/components/fallback";
 
-const NAV = [
+const CLIENT_NAV = [
   { href: "/dashboard", label: "Vue d'ensemble", icon: LayoutDashboard },
   { href: "/tracking", label: "Suivi", icon: Radar },
   { href: "/comparison", label: "Comparaison", icon: GitCompare },
   { href: "/audit", label: "Audit", icon: ScanSearch },
-  { href: "/prospects", label: "Prospection", icon: Users },
   { href: "/billing", label: "Forfait", icon: CreditCard },
   { href: "/settings", label: "Réglages", icon: Settings },
+] as const;
+
+const ADMIN_NAV = [
+  { href: "/admin", label: "Pilotage", icon: LayoutDashboard },
+  { href: "/admin/prospects", label: "Prospection", icon: Users },
 ] as const;
 
 function Mark() {
@@ -32,11 +36,17 @@ function Mark() {
   );
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({
+  items,
+  onNavigate,
+}: {
+  items: readonly { href: string; label: string; icon: typeof LayoutDashboard }[];
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   return (
     <>
-      {NAV.map((item) => {
+      {items.map((item) => {
         const active = pathname === item.href;
         const Icon = item.icon;
         return (
@@ -60,6 +70,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
 
@@ -75,26 +86,37 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     queryFn: () => api<User>("/auth/me"),
     enabled: authed,
   });
+  const admin = me.data?.role === "admin";
+  const onAdmin = pathname.startsWith("/admin") || pathname === "/prospects";
 
-  if (!ready || !authed) return <PageFallback />;
+  useEffect(() => {
+    if (!me.data) return;
+    if (admin && !onAdmin) router.replace("/admin");
+    if (!admin && onAdmin) router.replace("/dashboard");
+  }, [admin, me.data, onAdmin, router]);
+
+  if (!ready || !authed || me.isPending || !me.data || admin !== onAdmin) return <PageFallback />;
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     router.replace("/login");
   }
 
+  const navigation = admin ? ADMIN_NAV : CLIENT_NAV;
+  const home = admin ? "/admin" : "/dashboard";
+
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="no-print sticky top-0 hidden h-screen flex-col border-r border-border bg-[#0e1211] px-3 py-4 lg:flex">
-        <Link href="/dashboard" className="mb-8 flex items-center gap-2.5 px-2">
+        <Link href={home} className="mb-8 flex items-center gap-2.5 px-2">
           <Mark />
           <span>
             <span className="block text-sm font-semibold tracking-tight">Meridian</span>
-            <span className="block text-xs text-muted-foreground">Visibilité GEO</span>
+            <span className="block text-xs text-muted-foreground">{admin ? "Administration" : "Visibilité GEO"}</span>
           </span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1">
-          <NavLinks />
+          <NavLinks items={navigation} />
         </nav>
         <div className="mt-4 border-t border-border pt-4">
           <p className="truncate px-2 text-sm">{me.data?.name ?? "Compte"}</p>
@@ -111,7 +133,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="min-w-0">
         <div className="no-print flex items-center justify-between gap-3 border-b border-border px-4 py-3 lg:hidden">
-          <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+          <Link href={home} className="flex items-center gap-2 font-semibold">
             <Mark />
             Meridian
           </Link>
@@ -120,7 +142,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="no-print flex gap-1 overflow-x-auto border-b border-border px-3 py-2 lg:hidden">
-          <NavLinks />
+          <NavLinks items={navigation} />
         </nav>
         <main>{children}</main>
       </div>

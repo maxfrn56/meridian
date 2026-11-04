@@ -7,8 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from db import migrate
-from routers import audit, auth, billing, comparison, overview, prospects, settings as settings_router, tracking
+from routers import audit, auth, billing, comparison, office, overview, prospects, settings as settings_router, tracking
 from seed import seed_demo
+from services.admins import ensure_admins
 from services.prospects import import_legacy_file
 
 
@@ -17,6 +18,7 @@ async def lifespan(_app: FastAPI):
     migrate()
     if settings.seed_demo:
         seed_demo()
+    ensure_admins()
     import_legacy_file()
     yield
 
@@ -42,6 +44,7 @@ app.include_router(audit.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(prospects.router, prefix="/api/v1")
 app.include_router(billing.router, prefix="/api/v1")
+app.include_router(office.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

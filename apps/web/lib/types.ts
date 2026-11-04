@@ -5,6 +5,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  role: "client" | "admin";
   workspaceName: string;
   brandName: string;
   domain: string;
@@ -248,6 +249,36 @@ export type Plan = {
   priceEur: number;
   questionsPerMonth: number;
   detail: string;
+};
+
+export type AdminOverview = {
+  accounts: number;
+  verifiedAccounts: number;
+  subscriptions: number;
+  monthlyRevenueEur: number;
+  questionsUsed: number;
+  plans: {
+    id: string;
+    name: string;
+    priceEur: number;
+    subscribers: number;
+    monthlyEur: number;
+  }[];
+  clients: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    createdAt: string;
+    workspaceName: string;
+    brandName: string;
+    domain: string;
+    planId: string | null;
+    planName: string | null;
+    priceEur: number;
+    questionsUsed: number;
+    questionsPerMonth: number;
+  }[];
 };
 
 export type Subscription = {

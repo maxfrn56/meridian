@@ -16,6 +16,7 @@ from store import store
 def client():
     previous = settings.mock_llm
     previous_resend = os.environ.pop("RESEND_API_KEY", None)
+    previous_admins = os.environ.pop("ADMIN_ACCOUNTS", None)
     os.environ["MAIL_CAPTURE"] = "true"
     object.__setattr__(settings, "mock_llm", "true")
     store.reset()
@@ -29,6 +30,8 @@ def client():
         os.environ.pop("MAIL_CAPTURE", None)
         if previous_resend is not None:
             os.environ["RESEND_API_KEY"] = previous_resend
+        if previous_admins is not None:
+            os.environ["ADMIN_ACCOUNTS"] = previous_admins
         OUTBOX.clear()
 
 
@@ -136,8 +139,31 @@ def test_tracking_run_appends_results(client: TestClient):
     assert after == before + 1
 
 
+def _admin_headers(client: TestClient, name: str, email: str) -> dict[str, str]:
+    import uuid
+
+    from security import hash_password
+    from store import User
+
+    if store.user_by_email(email) is None:
+        store.add_admin(
+            User(
+                id=uuid.uuid4().hex,
+                name=name,
+                email=email,
+                password_hash=hash_password("adminpass8"),
+                email_verified=True,
+                role="admin",
+            )
+        )
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": "adminpass8"})
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "admin"
+    return {"Authorization": f"Bearer {response.json()['token']}"}
+
+
 def test_prospects_crud_in_database(client: TestClient):
-    headers = {"Authorization": f"Bearer {_token(client)}"}
+    headers = _admin_headers(client, "Maxime", "maxime@geo.dev")
     listing = client.get("/api/v1/prospects", headers=headers)
     assert listing.status_code == 200
     assert listing.json()["items"][0]["email"] == "contact@pure-nat.com"
@@ -174,20 +200,25 @@ def _confirmed_token(client: TestClient, email: str, password: str) -> str:
     return login.json()["token"]
 
 
-def test_prospects_are_private_to_their_owner(client: TestClient):
+def test_prospects_are_shared_by_admins_and_hidden_from_clients(client: TestClient):
+    maxime = _admin_headers(client, "Maxime", "maxime@geo.dev")
+    valentin = _admin_headers(client, "Valentin", "valentin@geo.dev")
     demo = {"Authorization": f"Bearer {_token(client)}"}
-    prospect_id = client.get("/api/v1/prospects", headers=demo).json()["items"][0]["id"]
-    assert (
-        client.post(
-            "/api/v1/auth/register",
-            json={"name": "Autre", "email": "autre@example.com", "password": "motdepasse8"},
-        ).status_code
-        == 200
+    assert client.get("/api/v1/prospects", headers=demo).status_code == 403
+    listing = client.get("/api/v1/prospects", headers=maxime)
+    assert listing.status_code == 200
+    prospect_id = listing.json()["items"][0]["id"]
+    shared = client.get("/api/v1/prospects", headers=valentin).json()["items"]
+    assert shared[0]["id"] == prospect_id
+    assert client.delete(f"/api/v1/prospects/{prospect_id}", headers=demo).status_code == 403
+    created = client.post(
+        "/api/v1/prospects",
+        headers=maxime,
+        json={"company": "Notox", "city": "Anglet", "status": "a_contacter", "channel": "linkedin"},
     )
-    other = _confirmed_token(client, "autre@example.com", "motdepasse8")
-    intruder = {"Authorization": f"Bearer {other}"}
-    assert client.get("/api/v1/prospects", headers=intruder).json()["items"] == []
-    assert client.delete(f"/api/v1/prospects/{prospect_id}", headers=intruder).status_code == 404
+    assert created.status_code == 201
+    names = {item["company"] for item in client.get("/api/v1/prospects", headers=valentin).json()["items"]}
+    assert names == {"Purenat", "Notox"}
 
 
 def test_data_survives_an_api_restart(client: TestClient):
@@ -251,7 +282,7 @@ def test_legacy_prospects_file_is_imported_once(client: TestClient, tmp_path):
     )
     assert import_legacy_file(legacy) == 1
     assert not legacy.exists()
-    headers = {"Authorization": f"Bearer {_token(client)}"}
+    headers = _admin_headers(client, "Maxime", "maxime@geo.dev")
     names = {item["company"] for item in client.get("/api/v1/prospects", headers=headers).json()["items"]}
     assert names == {"Purenat", "Ancien"}
 
@@ -266,7 +297,7 @@ def test_legacy_file_written_by_windows_is_readable(client: TestClient, tmp_path
     content = json.dumps({user_id: [{"id": "win1", "company": "Équipe Windows", "channel": "email", "status": "envoye"}]}, ensure_ascii=False)
     legacy.write_bytes(content.encode("cp1252"))
     assert import_legacy_file(legacy) == 1
-    headers = {"Authorization": f"Bearer {_token(client)}"}
+    headers = _admin_headers(client, "Maxime", "maxime@geo.dev")
     names = {item["company"] for item in client.get("/api/v1/prospects", headers=headers).json()["items"]}
     assert "Équipe Windows" in names
 
@@ -278,6 +309,56 @@ def test_unreadable_legacy_file_does_not_block_startup(tmp_path):
     legacy.write_text("{ pas du json", encoding="utf-8")
     assert import_legacy_file(legacy) == 0
     assert legacy.exists()
+
+
+def test_admin_overview_counts_client_subscriptions(client: TestClient):
+    headers = _admin_headers(client, "Maxime", "maxime@geo.dev")
+    denied = client.get("/api/v1/admin/overview", headers={"Authorization": f"Bearer {_token(client)}"})
+    assert denied.status_code == 403
+    body = client.get("/api/v1/admin/overview", headers=headers).json()
+    assert body["accounts"] == 1
+    assert body["verifiedAccounts"] == 1
+    assert body["subscriptions"] == 1
+    assert body["monthlyRevenueEur"] == 490
+    assert body["clients"][0]["email"] == DEMO_EMAIL
+    assert body["clients"][0]["planName"] == "Croissance"
+    assert body["clients"][0]["priceEur"] == 490
+    croissance = next(item for item in body["plans"] if item["id"] == "croissance")
+    assert croissance["subscribers"] == 1
+    assert croissance["monthlyEur"] == 490
+    assert all(item["email"] != "maxime@geo.dev" for item in body["clients"])
+
+
+def test_environment_creates_admin_accounts(client: TestClient):
+    from services.admins import ensure_admins
+
+    os.environ["ADMIN_ACCOUNTS"] = "Maxime|maxime.admin@geo.dev|meridian8;Valentin|valentin.admin@geo.dev|meridian8"
+    try:
+        ensure_admins()
+        ensure_admins()
+        login = client.post(
+            "/api/v1/auth/login", json={"email": "valentin.admin@geo.dev", "password": "meridian8"}
+        )
+        assert login.status_code == 200
+        assert login.json()["user"]["role"] == "admin"
+        assert store.user_by_email("maxime.admin@geo.dev").role == "admin"
+        os.environ["ADMIN_ACCOUNTS"] = "Camille Martin|demo@geo.dev|autrepass1"
+        ensure_admins()
+        old = client.post("/api/v1/auth/login", json={"email": DEMO_EMAIL, "password": DEMO_PASSWORD})
+        assert old.status_code == 401
+        still = client.post("/api/v1/auth/login", json={"email": DEMO_EMAIL, "password": "autrepass1"})
+        assert still.status_code == 200
+        assert still.json()["user"]["role"] == "admin"
+        os.environ["ADMIN_ACCOUNTS"] = "contact@geo.dev|meridian8"
+        ensure_admins()
+        short = client.post("/api/v1/auth/login", json={"email": "contact@geo.dev", "password": "meridian8"})
+        assert short.status_code == 200
+        assert short.json()["user"]["role"] == "admin"
+        os.environ["ADMIN_ACCOUNTS"] = "Trop court|court@geo.dev|abc"
+        ensure_admins()
+        assert store.user_by_email("court@geo.dev") is None
+    finally:
+        os.environ.pop("ADMIN_ACCOUNTS", None)
 
 
 def test_signup_requires_email_confirmation_and_password_reset(client: TestClient):

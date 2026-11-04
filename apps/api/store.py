@@ -34,6 +34,7 @@ class User:
     name: str
     email: str
     password_hash: str
+    role: str = "client"
     email_verified: bool = True
     session_version: int = 0
     verify_token_hash: str = ""
@@ -116,6 +117,7 @@ def _user(row: UserRow) -> User:
         name=row.name,
         email=row.email,
         password_hash=row.password_hash,
+        role=row.role,
         email_verified=row.email_verified,
         session_version=row.session_version,
         verify_token_hash=row.verify_token_hash,
@@ -196,6 +198,7 @@ class Store:
                     name=user.name,
                     email=user.email.lower(),
                     password_hash=user.password_hash,
+                    role=user.role,
                     email_verified=user.email_verified,
                     session_version=user.session_version,
                 )
@@ -221,6 +224,40 @@ class Store:
                     ],
                 )
             )
+
+    def add_admin(self, user: User) -> None:
+        """Compte interne, sans espace client."""
+        with self._session() as session, session.begin():
+            exists = session.scalar(select(UserRow.id).where(UserRow.email == user.email.lower()))
+            if exists:
+                raise ValueError("Un compte existe déjà avec cet e-mail.")
+            session.add(
+                UserRow(
+                    id=user.id,
+                    name=user.name,
+                    email=user.email.lower(),
+                    password_hash=user.password_hash,
+                    role="admin",
+                    email_verified=True,
+                    session_version=user.session_version,
+                )
+            )
+
+    def set_role(self, user_id: str, role: str) -> None:
+        with self._session() as session, session.begin():
+            session.execute(update(UserRow).where(UserRow.id == user_id).values(role=role))
+
+    def adopt_admin(self, user_id: str, password_hash: str | None) -> None:
+        """Passe le compte en administrateur, confirmé, avec le mot de passe indiqué s'il change."""
+        with self._session() as session, session.begin():
+            row = session.get(UserRow, user_id)
+            if row is None:
+                return
+            row.role = "admin"
+            row.email_verified = True
+            if password_hash:
+                row.password_hash = password_hash
+                row.session_version += 1
 
     def delete_user(self, user_id: str) -> None:
         with self._session() as session, session.begin():
