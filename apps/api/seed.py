@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from security import hash_password
 from services.auditor import audit_documents
+from services.prospects import seed_prospects
 from services.simulator import simulate_answer
 from services.tracker import citations_from_sources, entities_from_workspace
 from store import Competitor, Query, StoredAudit, StoredRun, User, Workspace, store
@@ -171,3 +172,4 @@ def seed_demo(target: store.__class__ | None = None) -> None:
             ),
         )
     destination.add_runs(user.id, runs)
+    seed_prospects(user.id)

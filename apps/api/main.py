@@ -6,13 +6,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
+from db import migrate
 from routers import audit, auth, billing, comparison, overview, prospects, settings as settings_router, tracking
 from seed import seed_demo
+from services.prospects import import_legacy_file
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    seed_demo()
+    migrate()
+    if settings.seed_demo:
+        seed_demo()
+    import_legacy_file()
     yield
 
 

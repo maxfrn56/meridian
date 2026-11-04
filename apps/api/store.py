@@ -1,12 +1,31 @@
+"""Accès aux données.
+
+Les services (metrics, comparison, recommender…) travaillent sur des dataclasses simples.
+Ce module les lit et les écrit dans la base via SQLAlchemy : les services ne voient pas SQL.
+"""
+
 from __future__ import annotations
 
-import threading
 import uuid
-from dataclasses import dataclass, field
-from datetime import date, datetime
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime, timezone
 
+from sqlalchemy import delete, select, update
+from sqlalchemy.orm import Session, selectinload, sessionmaker
+
+from db import SessionLocal
+from models.tables import (
+    AuditRow,
+    Base,
+    CitationRow,
+    CompetitorRow,
+    QueryRow,
+    TrackingRunRow,
+    UserRow,
+    WorkspaceRow,
+)
 from services.analyzer import Citation, normalize_domain
-from services.auditor import AuditDraft
+from services.auditor import AuditDraft, Check
 
 
 @dataclass
@@ -70,39 +89,162 @@ class Workspace:
     questions_used: int = 0
 
 
-class Store:
-    def __init__(self) -> None:
-        self._lock = threading.RLock()
-        self.users: dict[str, User] = {}
-        self.by_email: dict[str, str] = {}
-        self.workspaces: dict[str, Workspace] = {}
+def _aware(value: datetime) -> datetime:
+    """SQLite rend des dates sans fuseau : on les remet en UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
+
+def _current_month() -> str:
+    return date.today().strftime("%Y-%m")
+
+
+def _user(row: UserRow) -> User:
+    return User(id=row.id, name=row.name, email=row.email, password_hash=row.password_hash)
+
+
+def _run(row: TrackingRunRow) -> StoredRun:
+    return StoredRun(
+        id=row.id,
+        query_id=row.query_id,
+        query_prompt=row.query_prompt,
+        provider=row.provider,
+        model=row.model,
+        status=row.status,
+        source=row.source,
+        response_text=row.response_text,
+        citations=[
+            Citation(url=item.url, domain=item.domain, title=item.title, position=item.position)
+            for item in row.citations
+        ],
+        error=row.error,
+        created_at=_aware(row.created_at),
+    )
+
+
+def _draft_to_json(draft: AuditDraft) -> dict:
+    return asdict(draft)
+
+
+def _draft_from_json(data: dict) -> AuditDraft:
+    values = dict(data)
+    values["checks"] = [Check(**item) for item in values.get("checks", [])]
+    return AuditDraft(**values)
+
+
+def _audit(row: AuditRow) -> StoredAudit:
+    return StoredAudit(id=row.id, draft=_draft_from_json(row.data), created_at=_aware(row.created_at))
+
+
+class Store:
+    def __init__(self, sessions: sessionmaker[Session] = SessionLocal) -> None:
+        self._sessions = sessions
+
+    def _session(self) -> Session:
+        return self._sessions()
+
+    # Utilisé par les tests.
     def reset(self) -> None:
-        with self._lock:
-            self.users.clear()
-            self.by_email.clear()
-            self.workspaces.clear()
+        with self._session() as session, session.begin():
+            for table in reversed(Base.metadata.sorted_tables):
+                session.execute(delete(table))
+
+    # Comptes
 
     def user_by_id(self, user_id: str) -> User | None:
-        with self._lock:
-            return self.users.get(user_id)
+        with self._session() as session:
+            row = session.get(UserRow, user_id)
+            return _user(row) if row else None
 
     def user_by_email(self, email: str) -> User | None:
-        with self._lock:
-            user_id = self.by_email.get(email.lower())
-            return self.users.get(user_id) if user_id else None
-
-    def workspace_for(self, user_id: str) -> Workspace | None:
-        with self._lock:
-            return self.workspaces.get(user_id)
+        with self._session() as session:
+            row = session.scalar(select(UserRow).where(UserRow.email == email.lower()))
+            return _user(row) if row else None
 
     def add_user(self, user: User, workspace: Workspace) -> None:
-        with self._lock:
-            if user.email.lower() in self.by_email:
+        with self._session() as session, session.begin():
+            exists = session.scalar(select(UserRow.id).where(UserRow.email == user.email.lower()))
+            if exists:
                 raise ValueError("Un compte existe déjà avec cet e-mail.")
-            self.users[user.id] = user
-            self.by_email[user.email.lower()] = user.id
-            self.workspaces[user.id] = workspace
+            session.add(
+                UserRow(id=user.id, name=user.name, email=user.email.lower(), password_hash=user.password_hash)
+            )
+            session.add(
+                WorkspaceRow(
+                    id=workspace.id,
+                    user_id=user.id,
+                    name=workspace.name,
+                    brand_name=workspace.brand_name,
+                    domain=workspace.domain,
+                    sector=workspace.sector,
+                    plan_id=workspace.plan_id,
+                    period_month=workspace.period_month,
+                    questions_used=workspace.questions_used,
+                    competitors=[
+                        CompetitorRow(id=item.id, name=item.name, domain=item.domain, position=index)
+                        for index, item in enumerate(workspace.competitors)
+                    ],
+                    queries=[
+                        QueryRow(id=item.id, prompt=item.prompt, active=item.active, position=index)
+                        for index, item in enumerate(workspace.queries)
+                    ],
+                )
+            )
+
+    # Espace client
+
+    def _workspace_row(self, session: Session, user_id: str) -> WorkspaceRow | None:
+        return session.scalar(
+            select(WorkspaceRow)
+            .where(WorkspaceRow.user_id == user_id)
+            .options(selectinload(WorkspaceRow.competitors), selectinload(WorkspaceRow.queries))
+        )
+
+    def _load(self, session: Session, row: WorkspaceRow) -> Workspace:
+        runs = session.scalars(
+            select(TrackingRunRow)
+            .where(TrackingRunRow.workspace_id == row.id)
+            .order_by(TrackingRunRow.created_at)
+            .options(selectinload(TrackingRunRow.citations))
+        ).all()
+        audits = session.scalars(
+            select(AuditRow).where(AuditRow.workspace_id == row.id).order_by(AuditRow.created_at)
+        ).all()
+        return Workspace(
+            id=row.id,
+            user_id=row.user_id,
+            name=row.name,
+            brand_name=row.brand_name,
+            domain=row.domain,
+            sector=row.sector,
+            competitors=[Competitor(id=item.id, name=item.name, domain=item.domain) for item in row.competitors],
+            queries=[Query(id=item.id, prompt=item.prompt, active=item.active) for item in row.queries],
+            runs=[_run(item) for item in runs],
+            audits=[_audit(item) for item in audits],
+            plan_id=row.plan_id,
+            period_month=row.period_month,
+            questions_used=row.questions_used,
+        )
+
+    def _roll_period(self, row: WorkspaceRow) -> None:
+        month = _current_month()
+        if row.period_month != month:
+            row.period_month = month
+            row.questions_used = 0
+
+    def workspace_for(self, user_id: str) -> Workspace | None:
+        with self._session() as session:
+            row = self._workspace_row(session, user_id)
+            return self._load(session, row) if row else None
+
+    def current_workspace(self, user_id: str) -> Workspace:
+        """Espace à jour, compteur du mois remis à zéro si le mois a changé."""
+        with self._session() as session, session.begin():
+            row = self._workspace_row(session, user_id)
+            if row is None:
+                raise KeyError(user_id)
+            self._roll_period(row)
+            session.flush()
+            return self._load(session, row)
 
     def update_settings(
         self,
@@ -114,89 +256,144 @@ class Store:
         competitors: list[tuple[str, str]],
         queries: list[tuple[str, bool]],
     ) -> Workspace:
-        with self._lock:
-            workspace = self.workspaces[user_id]
-            cleaned_domain = normalize_domain(domain)
-            if not cleaned_domain:
-                raise ValueError("Le domaine de la marque est requis.")
-            if len(competitors) > 5:
-                raise ValueError("Cinq concurrents maximum.")
-            if len(queries) > 60:
-                raise ValueError("Soixante requêtes maximum.")
-            seen_domains: set[str] = set()
-            next_competitors: list[Competitor] = []
-            current = {item.domain: item for item in workspace.competitors}
-            for name, raw_domain in competitors:
-                competitor_domain = normalize_domain(raw_domain)
-                if competitor_domain in seen_domains:
-                    raise ValueError(f"Le domaine {competitor_domain} est en double.")
-                if competitor_domain == cleaned_domain:
-                    raise ValueError("Un concurrent ne peut pas partager le domaine de la marque.")
-                seen_domains.add(competitor_domain)
-                previous = current.get(competitor_domain)
-                next_competitors.append(
-                    Competitor(
-                        id=previous.id if previous else uuid.uuid4().hex,
-                        name=name.strip(),
-                        domain=competitor_domain,
-                    )
-                )
-            seen_prompts: set[str] = set()
-            next_queries: list[Query] = []
-            current_queries = {item.prompt: item for item in workspace.queries}
-            for prompt, active in queries:
-                cleaned = " ".join(prompt.split())
-                if cleaned in seen_prompts:
-                    raise ValueError("Deux requêtes sont identiques.")
-                seen_prompts.add(cleaned)
-                previous = current_queries.get(cleaned)
-                next_queries.append(
-                    Query(
-                        id=previous.id if previous else uuid.uuid4().hex,
-                        prompt=cleaned,
-                        active=active,
-                    )
-                )
-            workspace.name = workspace_name.strip()
-            workspace.brand_name = brand_name.strip()
-            workspace.domain = cleaned_domain
-            workspace.sector = sector.strip()
-            workspace.competitors = next_competitors
-            workspace.queries = next_queries
-            return workspace
+        cleaned_domain = normalize_domain(domain)
+        if not cleaned_domain:
+            raise ValueError("Le domaine de la marque est requis.")
+        if len(competitors) > 5:
+            raise ValueError("Cinq concurrents maximum.")
+        if len(queries) > 60:
+            raise ValueError("Soixante requêtes maximum.")
 
-    def _roll_period(self, workspace: Workspace) -> None:
-        month = date.today().strftime("%Y-%m")
-        if workspace.period_month != month:
-            workspace.period_month = month
-            workspace.questions_used = 0
+        seen_domains: set[str] = set()
+        wanted_competitors: list[tuple[str, str]] = []
+        for name, raw_domain in competitors:
+            competitor_domain = normalize_domain(raw_domain)
+            if competitor_domain in seen_domains:
+                raise ValueError(f"Le domaine {competitor_domain} est en double.")
+            if competitor_domain == cleaned_domain:
+                raise ValueError("Un concurrent ne peut pas partager le domaine de la marque.")
+            seen_domains.add(competitor_domain)
+            wanted_competitors.append((name.strip(), competitor_domain))
 
-    def current_workspace(self, user_id: str) -> Workspace:
-        with self._lock:
-            workspace = self.workspaces[user_id]
-            self._roll_period(workspace)
-            return workspace
+        seen_prompts: set[str] = set()
+        wanted_queries: list[tuple[str, bool]] = []
+        for prompt, active in queries:
+            cleaned = " ".join(prompt.split())
+            if cleaned in seen_prompts:
+                raise ValueError("Deux requêtes sont identiques.")
+            seen_prompts.add(cleaned)
+            wanted_queries.append((cleaned, active))
+
+        with self._session() as session, session.begin():
+            row = self._workspace_row(session, user_id)
+            if row is None:
+                raise KeyError(user_id)
+            # On garde les identifiants existants : l'historique des runs y reste rattaché.
+            current_competitors = {item.domain: item for item in row.competitors}
+            next_competitors: list[CompetitorRow] = []
+            for index, (name, competitor_domain) in enumerate(wanted_competitors):
+                item = current_competitors.pop(competitor_domain, None)
+                if item is None:
+                    item = CompetitorRow(id=uuid.uuid4().hex, domain=competitor_domain)
+                item.name = name
+                item.position = index
+                next_competitors.append(item)
+
+            current_queries = {item.prompt: item for item in row.queries}
+            next_queries: list[QueryRow] = []
+            for index, (prompt, active) in enumerate(wanted_queries):
+                item = current_queries.pop(prompt, None)
+                if item is None:
+                    item = QueryRow(id=uuid.uuid4().hex, prompt=prompt)
+                item.active = active
+                item.position = index
+                next_queries.append(item)
+
+            # Supprimer d'abord les concurrents retirés, sinon la contrainte (espace, domaine) peut gêner.
+            for item in current_competitors.values():
+                session.delete(item)
+            session.flush()
+
+            row.name = workspace_name.strip()
+            row.brand_name = brand_name.strip()
+            row.domain = cleaned_domain
+            row.sector = sector.strip()
+            row.competitors = next_competitors
+            row.queries = next_queries
+            session.flush()
+            return self._load(session, row)
+
+    # Forfait
 
     def activate_plan(self, user_id: str, plan_id: str) -> Workspace:
-        with self._lock:
-            workspace = self.workspaces[user_id]
-            self._roll_period(workspace)
-            workspace.plan_id = plan_id
-            return workspace
+        with self._session() as session, session.begin():
+            row = self._workspace_row(session, user_id)
+            if row is None:
+                raise KeyError(user_id)
+            self._roll_period(row)
+            row.plan_id = plan_id
+            session.flush()
+            return self._load(session, row)
 
     def consume_questions(self, user_id: str, count: int) -> None:
-        with self._lock:
-            workspace = self.workspaces[user_id]
-            self._roll_period(workspace)
-            workspace.questions_used += count
+        with self._session() as session, session.begin():
+            row = self._workspace_row(session, user_id)
+            if row is None:
+                raise KeyError(user_id)
+            self._roll_period(row)
+            session.flush()
+            # Incrément côté base : deux lancements simultanés ne s'écrasent pas.
+            session.execute(
+                update(WorkspaceRow)
+                .where(WorkspaceRow.id == row.id)
+                .values(questions_used=WorkspaceRow.questions_used + count)
+            )
+
+    # Résultats
+
+    def _workspace_id(self, session: Session, user_id: str) -> str:
+        workspace_id = session.scalar(select(WorkspaceRow.id).where(WorkspaceRow.user_id == user_id))
+        if workspace_id is None:
+            raise KeyError(user_id)
+        return workspace_id
 
     def add_runs(self, user_id: str, runs: list[StoredRun]) -> None:
-        with self._lock:
-            self.workspaces[user_id].runs.extend(runs)
+        with self._session() as session, session.begin():
+            workspace_id = self._workspace_id(session, user_id)
+            session.add_all(
+                TrackingRunRow(
+                    id=run.id,
+                    workspace_id=workspace_id,
+                    query_id=run.query_id,
+                    query_prompt=run.query_prompt,
+                    provider=run.provider,
+                    model=run.model,
+                    status=run.status,
+                    source=run.source,
+                    response_text=run.response_text,
+                    error=run.error,
+                    created_at=run.created_at,
+                    citations=[
+                        CitationRow(url=item.url, domain=item.domain, title=item.title, position=item.position)
+                        for item in run.citations
+                    ],
+                )
+                for run in runs
+            )
 
     def add_audit(self, user_id: str, audit: StoredAudit) -> None:
-        with self._lock:
-            self.workspaces[user_id].audits.append(audit)
+        with self._session() as session, session.begin():
+            workspace_id = self._workspace_id(session, user_id)
+            session.add(
+                AuditRow(
+                    id=audit.id,
+                    workspace_id=workspace_id,
+                    url=audit.draft.url,
+                    score=audit.draft.score,
+                    data=_draft_to_json(audit.draft),
+                    created_at=audit.created_at,
+                )
+            )
 
 
 store = Store()

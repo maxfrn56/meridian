@@ -1,0 +1,152 @@
+"""Tables de la base. Alembic génère les migrations à partir de ces classes."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class UserRow(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    password_hash: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    workspace: Mapped[WorkspaceRow | None] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class WorkspaceRow(Base):
+    """Espace client. La marque suivie vit ici : un espace = une marque."""
+
+    __tablename__ = "workspaces"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    name: Mapped[str] = mapped_column(String(120))
+    brand_name: Mapped[str] = mapped_column(String(120), default="")
+    domain: Mapped[str] = mapped_column(String(253), default="")
+    sector: Mapped[str] = mapped_column(String(120), default="")
+    plan_id: Mapped[str | None] = mapped_column(String(32), default=None)
+    period_month: Mapped[str] = mapped_column(String(7), default="")
+    questions_used: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    user: Mapped[UserRow] = relationship(back_populates="workspace")
+    competitors: Mapped[list[CompetitorRow]] = relationship(
+        cascade="all, delete-orphan", order_by="CompetitorRow.position"
+    )
+    queries: Mapped[list[QueryRow]] = relationship(cascade="all, delete-orphan", order_by="QueryRow.position")
+
+
+class CompetitorRow(Base):
+    __tablename__ = "competitors"
+    __table_args__ = (UniqueConstraint("workspace_id", "domain"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    domain: Mapped[str] = mapped_column(String(253))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class QueryRow(Base):
+    """Prompt suivi par le client."""
+
+    __tablename__ = "queries"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TrackingRunRow(Base):
+    """Une réponse d'un moteur à un prompt.
+
+    query_id n'est pas une clé étrangère : l'historique reste quand le client supprime un prompt,
+    et query_prompt garde le texte tel qu'il a été envoyé.
+    """
+
+    __tablename__ = "tracking_runs"
+    __table_args__ = (Index("ix_tracking_runs_workspace_created", "workspace_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"))
+    query_id: Mapped[str] = mapped_column(String(32), index=True)
+    query_prompt: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(8))
+    response_text: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    citations: Mapped[list[CitationRow]] = relationship(
+        cascade="all, delete-orphan", order_by="CitationRow.position"
+    )
+
+
+class CitationRow(Base):
+    """Source citée par un moteur. Table à part pour agréger les domaines en SQL."""
+
+    __tablename__ = "citations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("tracking_runs.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    domain: Mapped[str] = mapped_column(String(253), index=True)
+    title: Mapped[str | None] = mapped_column(Text, default=None)
+    position: Mapped[int] = mapped_column(Integer)
+
+
+class AuditRow(Base):
+    """Audit d'un site. Les scores sont en colonnes, le détail des contrôles en JSON."""
+
+    __tablename__ = "audits"
+    __table_args__ = (Index("ix_audits_workspace_created", "workspace_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"))
+    url: Mapped[str] = mapped_column(Text)
+    score: Mapped[int] = mapped_column(Integer)
+    data: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ProspectRow(Base):
+    __tablename__ = "prospects"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    company: Mapped[str] = mapped_column(String(120))
+    contact_name: Mapped[str] = mapped_column(String(120), default="")
+    email: Mapped[str] = mapped_column(String(160), default="")
+    website: Mapped[str] = mapped_column(String(200), default="")
+    city: Mapped[str] = mapped_column(String(80), default="")
+    question: Mapped[str] = mapped_column(Text, default="")
+    channel: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16))
+    sent_on: Mapped[str | None] = mapped_column(String(10), default=None)
+    follow_up_on: Mapped[str | None] = mapped_column(String(10), default=None)
+    meeting_on: Mapped[str | None] = mapped_column(String(10), default=None)
+    amount_eur: Mapped[int | None] = mapped_column(Integer, default=None)
+    next_step: Mapped[str] = mapped_column(String(300), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

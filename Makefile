@@ -1,4 +1,4 @@
-.PHONY: install api web test
+.PHONY: install api web test migration
 
 install:
 	python3 -m venv apps/api/.venv
@@ -13,3 +13,7 @@ web:
 
 test:
 	cd apps/api && .venv/bin/pytest -q
+
+# Après une modification de apps/api/models/tables.py : make migration m="ajout colonne x"
+migration:
+	cd apps/api && .venv/bin/alembic revision --autogenerate -m "$(m)"

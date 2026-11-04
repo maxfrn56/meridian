@@ -36,6 +36,8 @@ class Settings:
     async_tasks: bool
     use_playwright: bool
     allowed_origins: tuple[str, ...]
+    database_url: str
+    seed_demo: bool
 
     def provider_mode(self, provider: str) -> str:
         """live si la clé existe et que la simulation n'est pas forcée."""
@@ -49,6 +51,23 @@ class Settings:
         if self.mock_llm == "false":
             return "live"
         return "live" if key else "mock"
+
+
+_DEFAULT_DB = Path(__file__).resolve().parent / "data" / "meridian.db"
+
+
+def database_url_from_env() -> str:
+    """URL SQLAlchemy. SQLite par défaut en local, Postgres quand DATABASE_URL est posé.
+
+    Railway et Heroku donnent postgres:// ou postgresql:// : on force le pilote psycopg 3.
+    """
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        return f"sqlite:///{_DEFAULT_DB.as_posix()}"
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
 
 
 def load_settings() -> Settings:
@@ -66,6 +85,8 @@ def load_settings() -> Settings:
         async_tasks=_flag("ASYNC_TASKS", "false") in {"1", "true", "yes"},
         use_playwright=_flag("USE_PLAYWRIGHT", "false") in {"1", "true", "yes"},
         allowed_origins=tuple(part.strip() for part in origins.split(",") if part.strip()),
+        database_url=database_url_from_env(),
+        seed_demo=_flag("SEED_DEMO", "true") in {"1", "true", "yes"},
     )
 
 
