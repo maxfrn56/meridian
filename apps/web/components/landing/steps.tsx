@@ -1,6 +1,11 @@
 import { Check, CircleAlert, MessageSquareText, Plus, Search } from "lucide-react";
-import type { ReactNode } from "react";
-import { ACTIONS, AUDIT_CHECKS, BRAND, SOURCES, TRACKED_QUESTIONS } from "@/components/landing/data";
+import type { CSSProperties, ReactNode } from "react";
+import { ActionsList } from "@/components/landing/actions-list";
+import { AUDIT_CHECKS, BRAND, SOURCES, TRACKED_QUESTIONS } from "@/components/landing/data";
+import { CountUp, Reveal } from "@/components/landing/motion";
+import { MaskedTitle } from "@/components/landing/masked-title";
+
+const NEW_QUESTION = "Quelle carte de paiement entreprise pour une PME ?";
 
 type Step = {
   title: string;
@@ -16,7 +21,7 @@ const STEPS: Step[] = [
     text: "Ajoutez vos propres questions ou partez de celles que Meridian déduit de votre site. Chacune est posée tous les jours à ChatGPT, Perplexity et Gemini.",
     details: ["Suggestions tirées de votre site et de votre secteur", "Questions par marque, par produit ou par usage"],
     visual: <QuestionsVisual />,
-    summary: "Liste des questions suivies par Orvalis, avec des suggestions tirées de son site.",
+    summary: "Liste des questions suivies par Orvalis. Une question suggérée à partir de son site vient d'y être ajoutée : 121 questions suivies.",
   },
   {
     title: "Lisez chaque réponse, déjà analysée.",
@@ -45,22 +50,23 @@ export function Steps() {
   return (
     <section id="fonctionnement" className="lp-section" aria-labelledby="steps-title">
       <div className="lp-container">
-        <div className="lp-section-head">
-          <h2 id="steps-title" className="lp-h2">
-            De la question de vos clients à l&apos;action à mener.
-          </h2>
+        <Reveal className="lp-section-head">
+          <MaskedTitle id="steps-title" className="lp-h2" text="De la question de vos clients à l'action à mener." />
           <p className="lp-lead">
             Meridian suit le même chemin que vos clients : il interroge les IA, lit leurs réponses, remonte à leurs
             sources et vous dit quoi corriger en premier.
           </p>
-        </div>
+        </Reveal>
 
         <ol className="lp-steps">
           {STEPS.map((step, index) => (
             <li key={step.title} className="lp-step">
-              <div className="lp-step__text">
+              <Reveal className="lp-step__text">
                 <span className="lp-step__num" aria-hidden="true">
-                  {index + 1}
+                  <svg className="lp-step__ring" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="15.5" pathLength={1} />
+                  </svg>
+                  <span className="lp-step__digit">{index + 1}</span>
                 </span>
                 <h3 className="lp-h3">{step.title}</h3>
                 <p className="lp-step__body">{step.text}</p>
@@ -72,13 +78,13 @@ export function Steps() {
                     </li>
                   ))}
                 </ul>
-              </div>
-              <figure className="lp-stage">
+              </Reveal>
+              <Reveal as="figure" className="lp-stage">
                 <div aria-hidden="true" className="lp-stage__inner">
                   {step.visual}
                 </div>
                 <figcaption className="visually-hidden">{step.summary}</figcaption>
-              </figure>
+              </Reveal>
             </li>
           ))}
         </ol>
@@ -93,28 +99,44 @@ function QuestionsVisual() {
       <div className="lp-card">
         <div className="lp-card__head">
           <strong>Questions suivies</strong>
-          <span className="lp-muted">120</span>
+          <span className="lp-muted lp-swap">
+            <span className="lp-swap__old">120</span>
+            <span className="lp-swap__new">121</span>
+          </span>
         </div>
         <div className="lp-fake-input">
           <Search />
           Ajouter une question…
         </div>
-        <ul className="lp-qlist">
-          {TRACKED_QUESTIONS.slice(0, 4).map((row) => (
-            <li key={row.question}>
-              <span>{row.question}</span>
+        <div className="lp-qlist-viewport">
+          <ul className="lp-qlist">
+            <li className="lp-qlist__new">
+              <span>{NEW_QUESTION}</span>
               <span className="lp-tag">3 moteurs</span>
             </li>
-          ))}
-        </ul>
+            {TRACKED_QUESTIONS.slice(0, 4).map((row) => (
+              <li key={row.question}>
+                <span>{row.question}</span>
+                <span className="lp-tag">3 moteurs</span>
+              </li>
+            ))}
+          </ul>
+        </div>
         <p className="lp-card__sub">Suggérées à partir de {BRAND.domain}</p>
         <div className="lp-suggestions">
-          {["Notes de frais dans le BTP", "Indemnités kilométriques", "Carte de paiement entreprise"].map((label) => (
+          {["Notes de frais dans le BTP", "Indemnités kilométriques"].map((label) => (
             <span key={label} className="lp-tag lp-tag--add">
               <Plus />
               {label}
             </span>
           ))}
+          <span className="lp-tag lp-tag--add lp-tag--picked">
+            <span className="lp-tag__icons">
+              <Plus className="lp-tag__plus" />
+              <Check className="lp-tag__check" />
+            </span>
+            Carte de paiement entreprise
+          </span>
         </div>
       </div>
       <div className="lp-card lp-card--note">
@@ -126,6 +148,19 @@ function QuestionsVisual() {
 }
 
 function AnswerVisual() {
+  const rows = [
+    { term: "Citée", value: <>Oui</> },
+    {
+      term: "Rang",
+      value: (
+        <>
+          <span className="lp-rank">3</span> sur 3
+        </>
+      ),
+    },
+    { term: "Ton", value: <>Positif</> },
+    { term: "Concurrents", value: <>Notafix, Kalcéo</> },
+  ];
   return (
     <div className="lp-frag lp-frag--answer">
       <div className="lp-card">
@@ -148,24 +183,12 @@ function AnswerVisual() {
         </p>
       </div>
       <dl className="lp-card lp-card--float lp-annot">
-        <div>
-          <dt>Citée</dt>
-          <dd>Oui</dd>
-        </div>
-        <div>
-          <dt>Rang</dt>
-          <dd>
-            <span className="lp-rank">3</span> sur 3
-          </dd>
-        </div>
-        <div>
-          <dt>Ton</dt>
-          <dd>Positif</dd>
-        </div>
-        <div>
-          <dt>Concurrents</dt>
-          <dd>Notafix, Kalcéo</dd>
-        </div>
+        {rows.map((row, index) => (
+          <div key={row.term} style={{ "--i": index } as CSSProperties}>
+            <dt>{row.term}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   );
@@ -173,6 +196,9 @@ function AnswerVisual() {
 
 function SourcesVisual() {
   const max = Math.max(...SOURCES.map((source) => source.share));
+  // Les barres poussent dans l'ordre du tableau, celle du client en dernier.
+  const others = SOURCES.filter((source) => !source.client);
+  const order = SOURCES.map((source) => (source.client ? SOURCES.length - 1 : others.indexOf(source)));
   return (
     <div className="lp-frag lp-frag--sources">
       <div className="lp-card">
@@ -189,8 +215,12 @@ function SourcesVisual() {
             </tr>
           </thead>
           <tbody>
-            {SOURCES.map((source) => (
-              <tr key={source.domain} className={source.client ? "is-client" : undefined}>
+            {SOURCES.map((source, index) => (
+              <tr
+                key={source.domain}
+                className={source.client ? "is-client" : undefined}
+                style={{ "--i": order[index] } as CSSProperties}
+              >
                 <td>{source.domain}</td>
                 <td>
                   <span className="lp-hbar">
@@ -203,7 +233,15 @@ function SourcesVisual() {
                     <span className="lp-num">{source.share} %</span>
                   </span>
                 </td>
-                <td>{source.client ? <span className="lp-muted">Votre site</span> : source.mentionsYou ? <Check className="lp-icon-ok" /> : <span className="lp-muted">—</span>}</td>
+                <td>
+                  {source.client ? (
+                    <span className="lp-muted">Votre site</span>
+                  ) : source.mentionsYou ? (
+                    <Check className="lp-icon-ok" />
+                  ) : (
+                    <span className="lp-muted">—</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -226,32 +264,23 @@ function AuditVisual() {
         <div className="lp-card__head">
           <strong>Lisibilité par les IA</strong>
           <span className="lp-score">
-            72<small>/100</small>
+            <CountUp value={72} />
+            <small>/100</small>
           </span>
         </div>
         <ul className="lp-checklist">
-          {AUDIT_CHECKS.map((check) => (
-            <li key={check.label}>
+          {AUDIT_CHECKS.map((check, index) => (
+            <li key={check.label} style={{ "--i": index } as CSSProperties}>
               {check.ok ? <Check className="lp-icon-ok" /> : <CircleAlert className="lp-icon-warn" />}
               <span>{check.label}</span>
-              <span className="lp-muted">{check.ok ? "OK" : check.status}</span>
+              <span className="lp-muted lp-checklist__status">{check.ok ? "OK" : check.status}</span>
             </li>
           ))}
         </ul>
       </div>
       <div className="lp-card lp-card--float lp-actions">
         <strong className="lp-actions__title">Actions prioritaires</strong>
-        <ol>
-          {ACTIONS.map((action) => (
-            <li key={action.title}>
-              <span className={`lp-prio lp-prio--${action.priority === "Haute" ? "high" : action.priority === "Moyenne" ? "mid" : "low"}`}>
-                {action.priority}
-              </span>
-              <span>{action.title}</span>
-              <span className="lp-num lp-muted">{action.impact}</span>
-            </li>
-          ))}
-        </ol>
+        <ActionsList />
       </div>
     </div>
   );

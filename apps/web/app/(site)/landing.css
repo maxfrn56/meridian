@@ -20,7 +20,7 @@
   --accent-hover: #ff6a3d;
   --on-accent: #111318; /* 5,7:1 */
   --accent-soft: rgb(255 79 26 / 0.1);
-  --meridian: #eceef2;
+  --meridian: #e2e5ea;
 
   /* Typographie */
   --font: var(--font-satoshi), ui-sans-serif, system-ui, sans-serif;
@@ -87,19 +87,21 @@
   --shadow-window: 0 0 0 1px var(--border), 0 2px 4px rgb(17 19 24 / 0.03), 0 32px 80px -24px rgb(17 19 24 / 0.18);
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
 
-  /* Mouvement */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --dur-fast: 150ms;
-  --dur: 240ms;
-  --dur-slow: 480ms;
-  --type-word: 55ms;
+  /* Mouvement : deux courbes, trois durées (voir la section Mouvement en fin de fichier) */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1); /* décélération douce : apparitions, tracés */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* déplacements : glissements, tri */
+  --motion-fast: 300ms; /* survols, relais */
+  --motion: 600ms; /* apparitions */
+  --motion-data: 1200ms; /* chiffres, barres, courbes */
+  --stagger: 90ms;
+  --type-word: 36ms; /* écriture de la réponse du hero */
 }
 
 @media (prefers-reduced-motion: reduce) {
   .landing {
-    --dur-fast: 0ms;
-    --dur: 0ms;
-    --dur-slow: 0ms;
+    --motion-fast: 0ms;
+    --motion: 0ms;
+    --motion-data: 0ms;
     --type-word: 0ms;
   }
 }
@@ -265,8 +267,8 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out);
+    background-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
 }
 
 .lp-btn--sm {
@@ -348,7 +350,7 @@
 .lp-nav__link {
   color: var(--text-muted);
   font-size: var(--text-sm);
-  transition: color var(--dur-fast) var(--ease-out);
+  transition: color var(--motion-fast) var(--ease-out);
 }
 
 .lp-nav__link:hover {
@@ -1165,22 +1167,26 @@
   border-radius: 1px;
 }
 
+/* Le surlignage est un calque sous le mot : il peut balayer de gauche à droite (transform). */
 .lp-hit {
+  position: relative;
+  z-index: 0;
   margin-inline: -0.15em;
   padding-inline: 0.15em;
   background: transparent;
-  border-radius: 3px;
   color: inherit;
   font-weight: var(--weight-semibold);
-  transition:
-    background-color var(--dur-slow) var(--ease-out),
-    box-shadow var(--dur-slow) var(--ease-out);
 }
 
-[data-phase="done"] .lp-hit,
-.lp-hit--on {
+.lp-hit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: var(--accent-soft);
+  border-radius: 3px;
   box-shadow: inset 0 -2px 0 var(--accent);
+  transform-origin: left center;
 }
 
 .lp-answer__sources {
@@ -1190,12 +1196,6 @@
   margin-top: var(--space-2);
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
-  opacity: 0;
-  transition: opacity var(--dur) var(--ease-out) var(--dur-slow);
-}
-
-[data-phase="done"] .lp-answer__sources {
-  opacity: 1;
 }
 
 .lp-source {
@@ -1285,29 +1285,6 @@
   height: 0.875rem;
 }
 
-@keyframes lp-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-}
-
-@keyframes lp-tick {
-  from {
-    opacity: 0;
-    transform: translateY(0.3em);
-  }
-}
-
-.lp-pop {
-  display: inline-block;
-  animation: lp-pop var(--dur-slow) var(--ease-out) both;
-}
-
-.lp-tick {
-  display: inline-block;
-  animation: lp-tick var(--dur-slow) var(--ease-out) both;
-}
 
 /* ── Fonctionnement ─────────────────────────────────────────────────────── */
 
@@ -1344,12 +1321,25 @@
   width: 2rem;
   height: 2rem;
   margin-bottom: 1.25rem;
+  position: relative;
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid transparent; /* le cercle est dessiné par .lp-step__ring, pour pouvoir se tracer */
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-xs);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+}
+
+.lp-step__ring {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+  transform: rotate(-90deg);
 }
 
 .lp-step__body {
@@ -1452,8 +1442,11 @@
   height: 1rem;
 }
 
-.lp-qlist {
+/* Quatre lignes visibles : la question ajoutée entre par le haut, la dernière sort par le bas. */
+.lp-qlist-viewport {
+  height: calc(4 * 2.8125rem);
   margin-top: 0.75rem;
+  overflow: hidden;
 }
 
 .lp-qlist li {
@@ -1461,6 +1454,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  height: 2.8125rem;
   padding: 0.625rem 0;
   border-top: 1px solid var(--border);
 }
@@ -2229,7 +2223,7 @@
   width: 1.25rem;
   height: 1.25rem;
   color: var(--text-muted);
-  transition: transform var(--dur) var(--ease-out);
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 
 .lp-faq__item[open] summary svg {
@@ -2271,7 +2265,7 @@
   top: 45%;
   left: 50%;
   width: 56rem;
-  color: #e6e9ee;
+  color: #dcdfe5;
   transform: translateX(-50%);
   mask-image: linear-gradient(to bottom, #000 0%, transparent 45%);
   pointer-events: none;
@@ -2311,4 +2305,527 @@
 .lp-footer__legal {
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+
+/* ==========================================================================
+   Mouvement
+   Principe : seul le produit bouge, le texte ne bouge jamais. Les titres, paragraphes et
+   cartes sont là dès l'arrivée ; ce qui s'anime, ce sont les données (réponses, chiffres,
+   courbes, barres, listes) qui prouvent ce que dit le texte.
+
+   Une bibliothèque courte, partout la même :
+   - deux courbes : --ease-out (décélération douce) pour ce qui apparaît ou se dessine,
+     --ease-in-out pour ce qui se déplace d'une place à une autre (liste qui glisse, tri) ;
+   - trois durées : --motion-fast (survols), --motion (apparitions), --motion-data (données) ;
+   - quatre gestes : fondu, fondu avec 4 px de montée, croissance (barres, surlignage), tracé ;
+   - pas d'échelle, pas de rebond, --stagger entre les éléments d'une même liste.
+
+   Le rendu par défaut est l'état final. Les états de départ n'existent que sous .lp-motion,
+   posée par un script inline quand JavaScript tourne et que prefers-reduced-motion est inactif.
+   Chaque bloc passe de data-motion="wait" à "play" une fois, à son entrée à l'écran.
+   ========================================================================== */
+
+/* ── Les quatre gestes ── */
+
+@keyframes lp-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-lift {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes lp-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes lp-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Déplacements (--ease-in-out) et relais entre deux valeurs. */
+
+@keyframes lp-fade-away {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-lift-away {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes lp-list-in {
+  from {
+    transform: translateY(-20%);
+  }
+}
+
+@keyframes lp-sort {
+  from {
+    transform: translateY(var(--from, 0px));
+  }
+}
+
+/* Valeurs par défaut utiles aux transformations (sans effet visuel au repos). */
+.lp-hbar__track i,
+.lp-sov__track i,
+.lp-meter i {
+  transform-origin: left center;
+}
+
+.lp-line__wipe {
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+/* ── Gestes communs ── */
+
+/* Compteurs : invisibles jusqu'au départ, puis calculés par CountUp. */
+.lp-motion [data-motion="wait"] .lp-count {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="play"] .lp-count {
+  animation: lp-fade var(--motion-fast) var(--ease-out) both;
+}
+
+/* Surlignage de la marque : il passe sur le mot, de gauche à droite. */
+.lp-motion [data-motion="wait"] .lp-hit::before {
+  transform: scaleX(0);
+}
+
+.lp-motion [data-motion="play"] .lp-hit::before {
+  animation: lp-grow var(--motion) var(--ease-out) both;
+}
+
+/* ── Hero ── */
+
+/* Les méridiens tournent, très lentement : un demi-tour en 6 minutes. */
+@keyframes lp-meridian {
+  0% {
+    transform: scaleX(0.001);
+    animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1);
+  }
+  50% {
+    transform: scaleX(1);
+    animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0);
+  }
+  100% {
+    transform: scaleX(0.001);
+  }
+}
+
+.lp-meridian {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Au chargement, le globe du hero se dessine du pôle nord au pôle sud, ses méridiens apparaissant
+   du centre vers le bord ; puis la rotation lente prend le relais. */
+.lp-globe__wipe {
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+
+@keyframes lp-grow-down {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.lp-motion .lp-hero__globe .lp-globe__wipe {
+  animation: lp-grow-down 1600ms var(--ease-in-out) 200ms both;
+}
+
+.lp-motion .lp-globe--spin .lp-meridian {
+  animation:
+    lp-meridian 360s linear infinite,
+    lp-fade var(--motion-data) var(--ease-out) both;
+  animation-delay:
+    calc(var(--phase) * -360s),
+    calc(300ms + var(--order, 0) * 60ms);
+}
+
+/* Avant la séquence, le rendu serveur (état final) est masqué ; pendant l'écriture, React pilote. */
+.lp-motion .lp-hero__product[data-phase="done"][data-motion="wait"] .lp-word {
+  visibility: hidden;
+}
+
+.lp-motion .lp-hero__product[data-motion="wait"] :is(.lp-status--cited, .lp-answer__sources, .lp-kpi__chart circle),
+.lp-motion .lp-hero__product[data-motion="wait"] .lp-qtable__engine > :not(.lp-rank--pending) {
+  opacity: 0;
+}
+
+.lp-motion .lp-hero__product[data-motion="wait"] :is(.lp-spark, .lp-kpi__chart) polyline {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+/* Une fois la réponse écrite : la marque se surligne, le rang apparaît, le tableau se remplit
+   ligne après ligne, les courbes se dessinent, le taux de citation se calcule. */
+.lp-motion .lp-hero__product[data-motion="play"] .lp-status--cited {
+  animation: lp-lift var(--motion) var(--ease-out) 150ms both;
+}
+
+.lp-motion .lp-hero__product[data-motion="play"] .lp-answer__sources {
+  animation: lp-fade var(--motion) var(--ease-out) 300ms both;
+}
+
+.lp-motion .lp-hero__product[data-motion="play"] .lp-qtable__engine > * {
+  animation: lp-fade var(--motion) var(--ease-out) both;
+  animation-delay: calc(300ms + var(--row, 0) * var(--stagger));
+}
+
+.lp-motion .lp-hero__product[data-motion="play"] .lp-spark polyline {
+  animation: lp-draw var(--motion-data) var(--ease-out) both;
+  animation-delay: calc(400ms + var(--row, 0) * var(--stagger));
+}
+
+.lp-motion .lp-hero__product[data-motion="play"] .lp-kpi__chart polyline {
+  animation: lp-draw var(--motion-data) var(--ease-out) 400ms both;
+}
+
+.lp-motion .lp-hero__product[data-motion="play"] .lp-kpi__chart circle {
+  animation: lp-fade var(--motion) var(--ease-out) 1300ms both;
+}
+
+/* ── Étape 1 : une question suggérée rejoint la liste, le compteur passe à 121 ── */
+
+.lp-swap {
+  display: inline-grid;
+}
+
+.lp-swap > * {
+  grid-area: 1 / 1;
+  text-align: right;
+}
+
+.lp-swap__old {
+  opacity: 0;
+}
+
+.lp-tag__icons {
+  display: inline-grid;
+}
+
+.lp-tag__icons > svg {
+  grid-area: 1 / 1;
+}
+
+.lp-tag__plus {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="wait"] :is(.lp-swap__old, .lp-tag__plus) {
+  opacity: 1;
+}
+
+.lp-motion [data-motion="wait"] :is(.lp-swap__new, .lp-tag__check, .lp-qlist__new) {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="wait"] .lp-qlist {
+  transform: translateY(-20%);
+}
+
+.lp-motion [data-motion="play"] .lp-tag__plus {
+  animation: lp-fade-away var(--motion-fast) var(--ease-out) both;
+}
+
+.lp-motion [data-motion="play"] .lp-tag__check {
+  animation: lp-fade var(--motion) var(--ease-out) 100ms both;
+}
+
+.lp-motion [data-motion="play"] .lp-qlist {
+  animation: lp-list-in var(--motion-data) var(--ease-in-out) 300ms both;
+}
+
+.lp-motion [data-motion="play"] .lp-qlist__new {
+  animation: lp-fade var(--motion) var(--ease-out) 500ms both;
+}
+
+.lp-motion [data-motion="play"] .lp-swap__old {
+  animation: lp-lift-away var(--motion) var(--ease-out) 900ms both;
+}
+
+.lp-motion [data-motion="play"] .lp-swap__new {
+  animation: lp-lift var(--motion) var(--ease-out) 1000ms both;
+}
+
+/* ── Étape 2 : la marque se surligne, puis la fiche d'analyse se remplit ── */
+
+.lp-motion [data-motion="wait"] .lp-annot > div {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="play"] .lp-annot > div {
+  animation: lp-lift var(--motion) var(--ease-out) both;
+  animation-delay: calc(450ms + var(--i, 0) * var(--stagger));
+}
+
+/* ── Étape 3 : les barres poussent, celle du client en dernier, puis l'opportunité ── */
+
+.lp-motion [data-motion="wait"] .lp-hbar__track i {
+  transform: scaleX(0);
+}
+
+.lp-motion [data-motion="wait"] .lp-callout {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="play"] .lp-hbar__track i {
+  animation: lp-grow var(--motion-data) var(--ease-out) both;
+  animation-delay: calc(100ms + var(--i, 0) * var(--stagger));
+}
+
+.lp-motion [data-motion="play"] .lp-callout {
+  animation: lp-lift var(--motion) var(--ease-out) 1100ms both;
+}
+
+/* ── Étape 4 : le score se calcule, les actions arrivent dans le désordre puis se trient ── */
+
+.lp-motion [data-motion="wait"] .lp-actions li {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="play"] .lp-actions li {
+  animation:
+    lp-fade var(--motion) var(--ease-out) both,
+    lp-sort var(--motion-data) var(--ease-in-out) both;
+  animation-delay:
+    calc(200ms + var(--slot, 0) * var(--stagger)),
+    1000ms;
+}
+
+/* ── Tableau de bord : les KPI se calculent, les courbes se dessinent, les barres poussent ── */
+
+.lp-motion [data-motion="wait"] :is(.lp-line__wipe, .lp-sov__track i, .lp-tile .lp-meter i) {
+  transform: scaleX(0);
+}
+
+.lp-motion [data-motion="wait"] .lp-line__end {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="play"] .lp-tile .lp-meter i {
+  animation: lp-grow var(--motion-data) var(--ease-out) both;
+}
+
+.lp-motion [data-motion="play"] .lp-line__wipe {
+  animation: lp-grow 1400ms var(--ease-in-out) 200ms both;
+}
+
+.lp-motion [data-motion="play"] .lp-line__end {
+  animation: lp-fade var(--motion) var(--ease-out) 1400ms both;
+}
+
+.lp-motion [data-motion="play"] .lp-sov__track i {
+  animation: lp-grow var(--motion-data) var(--ease-out) both;
+  animation-delay: calc(300ms + var(--i, 0) * var(--stagger));
+}
+
+/* ── Survols et ouverture ──
+   Les cartes répondent au pointeur par leur ombre, presque sans bouger. */
+
+.lp-card:not(.lp-card--float),
+.lp-tile,
+.lp-panel,
+.lp-plan {
+  position: relative;
+}
+
+.lp-tile,
+.lp-panel {
+  --hover-shadow: var(--shadow-md);
+}
+
+:is(.lp-card, .lp-float, .lp-tile, .lp-panel, .lp-plan)::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: var(--hover-shadow, var(--shadow-float));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion) var(--ease-out);
+}
+
+/* « translate » plutôt que « transform » : le survol se combine avec les animations de données. */
+:is(.lp-card, .lp-float, .lp-tile, .lp-panel, .lp-plan) {
+  transition: translate var(--motion) var(--ease-out);
+}
+
+@media (hover: hover) {
+  :is(.lp-card, .lp-float, .lp-tile, .lp-panel, .lp-plan):hover {
+    translate: 0 -1px;
+  }
+
+  :is(.lp-card, .lp-float, .lp-tile, .lp-panel, .lp-plan):hover::after {
+    opacity: 1;
+  }
+}
+
+/* Liens : un filet se dessine de gauche à droite. */
+.lp-nav__link,
+.lp-footer__nav a {
+  position: relative;
+}
+
+.lp-nav__link::after,
+.lp-footer__nav a::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -3px;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--motion) var(--ease-out);
+}
+
+.lp-nav__link:hover::after,
+.lp-footer__nav a:hover::after {
+  transform: scaleX(1);
+}
+
+/* Boutons : la flèche avance à peine. */
+.lp-btn__icon {
+  transition: transform var(--motion) var(--ease-out);
+}
+
+.lp-btn:hover .lp-btn__icon {
+  transform: translateX(2px);
+}
+
+/* FAQ : la réponse apparaît en fondu, le chevron pivote. */
+.lp-faq__item summary svg {
+  transition:
+    transform var(--motion) var(--ease-in-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.lp-faq__item summary:hover svg {
+  color: var(--text);
+}
+
+.lp-motion .lp-faq__item[open] > p {
+  animation: lp-fade var(--motion) var(--ease-out) both;
+}
+
+/* ── Hors produit : quatre gestes, tous portés par le motif des méridiens ou les titres ── */
+
+/* Titres de section : chaque ligne monte depuis un masque, puis le chapeau apparaît. */
+.lp-motion .lp-mask {
+  display: inline-block;
+  overflow: clip;
+  overflow-clip-margin: 0.12em; /* les accents et les jambages ne sont pas rognés */
+  vertical-align: top;
+}
+
+.lp-motion .lp-mask__inner {
+  display: inline-block;
+}
+
+.lp-motion [data-motion="wait"] .lp-mask__inner {
+  transform: translateY(115%);
+}
+
+.lp-motion [data-motion="play"] .lp-mask__inner {
+  animation: lp-line-up var(--motion) var(--ease-out) both;
+  animation-delay: calc(var(--line, 0) * var(--stagger));
+}
+
+@keyframes lp-line-up {
+  from {
+    transform: translateY(115%);
+  }
+}
+
+.lp-motion [data-motion="wait"]:is(.lp-section-head, .lp-faq__head, .lp-final) > .lp-lead {
+  opacity: 0;
+}
+
+.lp-motion [data-motion="play"]:is(.lp-section-head, .lp-faq__head, .lp-final) > .lp-lead {
+  animation: lp-fade var(--motion) var(--ease-out) 300ms both;
+}
+
+/* Numéro d'étape : son cercle se trace, puis le chiffre apparaît. */
+.lp-motion .lp-step__text[data-motion="wait"] .lp-step__ring circle {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.lp-motion .lp-step__text[data-motion="wait"] .lp-step__digit {
+  opacity: 0;
+}
+
+.lp-motion .lp-step__text[data-motion="play"] .lp-step__ring circle {
+  animation: lp-draw var(--motion-data) var(--ease-in-out) both;
+}
+
+.lp-motion .lp-step__text[data-motion="play"] .lp-step__digit {
+  animation: lp-fade var(--motion) var(--ease-out) 500ms both;
+}
+
+/* Globe du CTA final : il se dessine à son tour quand on arrive en bas de page. */
+.lp-motion .lp-final[data-motion="wait"] .lp-globe__wipe {
+  transform: scaleY(0);
+}
+
+.lp-motion .lp-final[data-motion="wait"] .lp-meridian {
+  opacity: 0;
+}
+
+.lp-motion .lp-final[data-motion="play"] .lp-globe__wipe {
+  animation: lp-grow-down 1600ms var(--ease-in-out) 200ms both;
+}
+
+.lp-motion .lp-final[data-motion="play"] .lp-meridian {
+  animation: lp-fade var(--motion-data) var(--ease-out) both;
+  animation-delay: calc(300ms + var(--order, 0) * 60ms);
+}
+
+/* Logo : au survol, son méridien fait un demi-tour (de 29° à 209° de longitude). */
+.lp-logo__meridian {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes lp-logo-turn {
+  0% {
+    transform: scaleX(1);
+  }
+  34% {
+    transform: scaleX(2.09);
+  }
+  84% {
+    transform: scaleX(0.02);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+.lp-motion .lp-logo:hover .lp-logo__meridian {
+  animation: lp-logo-turn var(--motion-data) var(--ease-in-out);
 }

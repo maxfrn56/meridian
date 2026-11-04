@@ -1,4 +1,6 @@
 import { Check } from "lucide-react";
+import { Reveal } from "@/components/landing/motion";
+import { MaskedTitle } from "@/components/landing/masked-title";
 
 const PLANS = [
   {
@@ -48,15 +50,13 @@ export function Pricing() {
   return (
     <section id="tarifs" className="lp-section" aria-labelledby="pricing-title">
       <div className="lp-container">
-        <div className="lp-section-head">
-          <h2 id="pricing-title" className="lp-h2">
-            Un forfait selon le nombre de questions suivies.
-          </h2>
+        <Reveal className="lp-section-head">
+          <MaskedTitle id="pricing-title" className="lp-h2" text="Un forfait selon le nombre de questions suivies." />
           <p className="lp-lead">
             Tous les forfaits incluent ChatGPT, Perplexity et Gemini, l&apos;analyse quotidienne et l&apos;audit de votre
             site. Sans engagement, résiliable chaque mois.
           </p>
-        </div>
+        </Reveal>
 
         <ul className="lp-plans">
           {PLANS.map((plan) => (

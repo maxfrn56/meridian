@@ -2,23 +2,23 @@ import Link from "next/link";
 import { DomainForm } from "@/components/landing/domain-form";
 import { Globe } from "@/components/landing/globe";
 import { Logo } from "@/components/landing/site-header";
+import { Reveal } from "@/components/landing/motion";
+import { MaskedTitle } from "@/components/landing/masked-title";
 
 export function FinalCta() {
   return (
     <section className="lp-section" aria-labelledby="final-title">
       <div className="lp-container">
-        <div className="lp-final">
-          <Globe className="lp-final__globe" />
-          <h2 id="final-title" className="lp-h2">
-            Où en est votre marque dans les réponses des IA ?
-          </h2>
+        <Reveal className="lp-final">
+          <Globe id="final" className="lp-final__globe" />
+          <MaskedTitle id="final-title" className="lp-h2" text={"Où en est votre marque dans les réponses des IA ?"} />
           <p className="lp-lead">
             Saisissez votre domaine. Votre première mesure est prête en quelques minutes, sans carte bancaire.
           </p>
           <div className="lp-final__form">
             <DomainForm id="final" />
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );

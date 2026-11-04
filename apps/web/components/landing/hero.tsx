@@ -32,7 +32,7 @@ export function Hero() {
         </div>
 
         <div className="lp-hero__stage">
-          <Globe className="lp-hero__globe" />
+          <Globe id="hero" className="lp-hero__globe" spin />
           <HeroProduct />
         </div>
 

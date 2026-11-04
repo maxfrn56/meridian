@@ -1,4 +1,6 @@
 import { ChevronDown } from "lucide-react";
+import { Reveal } from "@/components/landing/motion";
+import { MaskedTitle } from "@/components/landing/masked-title";
 
 const QUESTIONS = [
   {
@@ -35,12 +37,10 @@ export function Faq() {
   return (
     <section id="faq" className="lp-section lp-section--surface" aria-labelledby="faq-title">
       <div className="lp-container lp-faq">
-        <div className="lp-faq__head">
-          <h2 id="faq-title" className="lp-h2">
-            Questions fréquentes
-          </h2>
+        <Reveal className="lp-faq__head">
+          <MaskedTitle id="faq-title" className="lp-h2" text="Questions fréquentes" />
           <p className="lp-lead">Ce qu&apos;il faut savoir avant de lancer votre premier audit.</p>
-        </div>
+        </Reveal>
         <div className="lp-faq__list">
           {QUESTIONS.map((item) => (
             <details key={item.q} className="lp-faq__item">
