@@ -5,7 +5,14 @@ from types import SimpleNamespace
 import routers.settings
 import services.prompt_generator as generator
 from config import settings
-from services.prompt_generator import GeneratedQuestions, clean_questions, generate_questions, question_budget
+from services.prompt_generator import (
+    GeneratedQuestions,
+    SitePortrait,
+    clean_questions,
+    generate_questions,
+    page_brief,
+    question_budget,
+)
 from tests.test_api import _token, client  # noqa: F401  (fixture)
 
 
@@ -16,7 +23,17 @@ class FakeMessages:
 
     async def parse(self, **kwargs):
         self.calls.append(kwargs)
-        return SimpleNamespace(stop_reason="end_turn", parsed_output=GeneratedQuestions(questions=self.questions))
+        if kwargs.get("output_format") is SitePortrait:
+            parsed = SitePortrait(
+                activity="analyse produit pour une scale-up",
+                size="éditeur",
+                reach="non précisée",
+                places=[],
+                peers="éditeurs d'analytics produit",
+            )
+        else:
+            parsed = GeneratedQuestions(questions=self.questions)
+        return SimpleNamespace(stop_reason="end_turn", parsed_output=parsed)
 
 
 class FakeClient:
@@ -44,6 +61,44 @@ def test_budget_follows_the_plan():
     from datetime import datetime, timedelta, timezone
 
     assert question_budget(None, 0, datetime.now(timezone.utc) - timedelta(days=1)) == 0
+
+
+def test_questions_stay_on_the_portrait_places_and_drop_directories():
+    raw = [
+        "Quelles sont les meilleures plateformes de freelances en France ?",
+        "Quel développeur web freelance à Biarritz pour une boutique ?",
+        "Petite agence web au Pays basque pour un site vitrine ?",
+        "Quel développeur web à Paris ?",
+    ]
+    kept = clean_questions(
+        raw,
+        "Atelier",
+        "atelier.fr",
+        [],
+        5,
+        "Service · France",
+        ["biarritz", "pays basque"],
+    )
+    assert kept == [
+        "Quel développeur web freelance à Biarritz pour une boutique ?",
+        "Petite agence web au Pays basque pour un site vitrine ?",
+    ]
+
+
+def test_page_brief_keeps_the_area_declared_in_structured_data():
+    html = """
+    <html><head>
+      <title>Développeur freelance</title>
+      <meta name="description" content="Sites et e-commerce." />
+      <script type="application/ld+json">
+        {"areaServed": ["Biarritz", "Pays Basque", "France"], "jobTitle": "Développeur web freelance"}
+      </script>
+    </head><body><h1>Sites</h1><p>Je conçois des sites.</p></body></html>
+    """
+    brief = page_brief(html)
+    assert "areaServed : Biarritz, Pays Basque, France" in brief
+    assert "jobTitle : Développeur web freelance" in brief
+    assert "Je conçois des sites." in brief
 
 
 def test_questions_naming_the_brand_or_repeated_are_dropped():
@@ -83,10 +138,12 @@ def test_generation_endpoint_proposes_the_plan_budget(client, monkeypatch):  # n
     questions = response.json()["questions"]
     # Forfait Croissance : 100 questions par jour, 12 déjà en place. Le faux n'en propose que neuf.
     assert questions == proposals
-    call = fake.messages.calls[0]
-    assert call["output_format"] is GeneratedQuestions
-    assert "Écris 96 nouvelles questions." in call["messages"][0]["content"]
-    assert "<site>" in call["messages"][0]["content"]
+    assert [call["output_format"] for call in fake.messages.calls] == [SitePortrait, GeneratedQuestions]
+    portrait, questions = fake.messages.calls
+    assert "<site>" in portrait["messages"][0]["content"]
+    assert "Écris 105 nouvelles questions." in questions["messages"][0]["content"]
+    assert "éditeurs d'analytics produit" in questions["messages"][0]["content"]
+    assert "analyse produit pour une scale-up" in questions["messages"][0]["content"]
     # Rien n'est enregistré : le client relit avant d'enregistrer.
     assert len(client.get("/api/v1/settings", headers=headers).json()["queries"]) == 12
 

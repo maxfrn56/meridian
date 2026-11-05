@@ -157,7 +157,7 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
     }
 
     stored = store.workspace_for(store.user_by_email(DEMO_EMAIL).id).runs[-1]
-    assert stored.analysis_version.endswith("/v3")
+    assert stored.analysis_version.endswith("/v4")
     assert [item.name for item in stored.analysis] == ["Lumenboard", "Northwind", "Datadash"]
 
     workspace = store.workspace_for(store.user_by_email(DEMO_EMAIL).id)
