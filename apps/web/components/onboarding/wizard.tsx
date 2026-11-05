@@ -3,16 +3,17 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiError, api, saveSettings } from "@/lib/api";
+import { ApiError, api, generateQuestions, saveSettings } from "@/lib/api";
 import type { Settings, SettingsInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ACTIVITIES = ["Commerce", "Service local", "Logiciel", "Industrie", "Conseil"] as const;
 const MARKETS = ["France", "Belgique", "Suisse", "Canada"] as const;
 const STEPS = 6;
+const MAX_QUESTIONS = 60;
 
 function suggestBrand(domain: string) {
   const host = domain.trim().replace(/^https?:\/\//i, "").split("/")[0]?.replace(/^www\./i, "") ?? "";
@@ -40,7 +41,11 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const [coachPage, setCoachPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState(false);
   const [readyBrand, setReadyBrand] = useState(false);
+  const request = useRef(0);
+  const coachOnce = useRef(false);
 
   useEffect(() => {
     if (!settings.data || readyBrand) return;
@@ -48,13 +53,44 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     setReadyBrand(true);
   }, [readyBrand, settings.data]);
 
+  function keptQuestions(list: string[]) {
+    return list.map((item) => item.trim()).filter((item) => item.length >= 8);
+  }
+
   function go(next: number) {
     setError(null);
-    if (next === 4) {
-      setCoach(true);
-      setCoachPage(0);
-    }
     setStep(next);
+    if (next === 4 && !generating && questions.every((item) => item.trim().length < 8)) {
+      void propose();
+    }
+  }
+
+  async function propose() {
+    const id = request.current + 1;
+    request.current = id;
+    setGenerating(true);
+    setError(null);
+    try {
+      const result = await generateQuestions({
+        brandName: brand.trim().slice(0, 80),
+        domain: domain.trim(),
+        sector: sectorLine(offer, market, city, multi),
+        existing: [],
+      });
+      if (request.current !== id) return;
+      setQuestions(result.questions.length > 0 ? result.questions.slice(0, MAX_QUESTIONS) : [""]);
+      setGenerated(true);
+      if (!coachOnce.current) {
+        coachOnce.current = true;
+        setCoach(true);
+        setCoachPage(0);
+      }
+    } catch (caught) {
+      if (request.current !== id) return;
+      setError(caught instanceof ApiError ? caught.message : "La génération n'a pas abouti.");
+    } finally {
+      if (request.current === id) setGenerating(false);
+    }
   }
 
   function validate(index: number) {
@@ -72,6 +108,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   }
 
   function forward() {
+    if (generating) return;
     const problem = validate(step);
     if (problem) {
       setError(problem);
@@ -89,13 +126,14 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
       setStep(4);
       return;
     }
-    const keptQuestions = questions.map((item) => item.trim()).filter((item) => item.length >= 8);
     const payload: SettingsInput = {
       workspaceName: brand.trim().slice(0, 80),
       brandName: brand.trim().slice(0, 80),
       domain: domain.trim(),
       sector: sectorLine(offer, market, city, multi),
-      queries: keptQuestions.slice(0, 3).map((prompt) => ({ prompt: prompt.slice(0, 400), active: true })),
+      queries: keptQuestions(questions)
+        .slice(0, MAX_QUESTIONS)
+        .map((prompt) => ({ prompt: prompt.slice(0, 400), active: true })),
     };
     setPending(true);
     setError(null);
@@ -143,7 +181,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
           Étape {step + 1} sur {STEPS}
         </p>
 
-        <div key={step} className="mt-8 motion-safe:animate-none">
+        <div key={step} className="mt-8 min-h-0 flex-1 overflow-y-auto motion-safe:animate-none">
           {step === 0 ? (
             <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Quel site faut-il auditer ?</h1>
@@ -268,35 +306,65 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
             <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Que demandent vos clients aux IA ?</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                Chaque question sera posée à ChatGPT, Perplexity et Gemini. Les concurrents ne se déclarent pas : ce sont les marques citées dans les réponses.
+                Les questions se rédigent à partir du site et de l'activité, puis sont posées à ChatGPT, Perplexity et Gemini. Relisez-les avant de continuer.
               </p>
-              <div className="mt-6 flex flex-col gap-2">
-                {suggestions.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => addSuggestion(item)}
-                    className="rounded-xl border border-border px-4 py-3 text-left text-sm hover:bg-muted"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 space-y-3">
-                {questions.map((question, index) => (
-                  <Textarea
-                    key={index}
-                    aria-label={`Question ${index + 1}`}
-                    value={question}
-                    onChange={(event) => setQuestions((current) => current.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))}
-                  />
-                ))}
-              </div>
-              {questions.length < 3 ? (
-                <Button type="button" variant="outline" className="mt-3" onClick={() => setQuestions((current) => [...current, ""])}>
-                  Ajouter une question
-                </Button>
-              ) : null}
+              {generating ? (
+                <p className="mt-8 text-sm font-semibold" role="status">
+                  Lecture du site et rédaction des questions…
+                </p>
+              ) : (
+                <>
+                  {generated ? null : (
+                    <div className="mt-6 flex flex-col gap-2">
+                      {suggestions.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => addSuggestion(item)}
+                          className="rounded-xl border border-border px-4 py-3 text-left text-sm hover:bg-muted"
+                        >
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 space-y-3">
+                    {questions.map((question, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_auto] items-start gap-2">
+                        <Textarea
+                          aria-label={`Question ${index + 1}`}
+                          value={question}
+                          onChange={(event) =>
+                            setQuestions((current) => current.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() =>
+                            setQuestions((current) => {
+                              const next = current.filter((_, itemIndex) => itemIndex !== index);
+                              return next.length > 0 ? next : [""];
+                            })
+                          }
+                        >
+                          Retirer
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => void propose()}>
+                      {generated ? "Générer à nouveau" : "Générer les questions"}
+                    </Button>
+                    {questions.length < MAX_QUESTIONS ? (
+                      <Button type="button" variant="outline" onClick={() => setQuestions((current) => [...current, ""])}>
+                        Ajouter une question
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </>
           ) : null}
 
@@ -324,12 +392,12 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         <div className="mt-auto flex items-center justify-end gap-3 pt-8">
           <div className="flex gap-2">
             {step > 0 ? (
-              <Button type="button" variant="outline" onClick={() => go(step - 1)} disabled={pending}>
+              <Button type="button" variant="outline" onClick={() => go(step - 1)} disabled={pending || generating}>
                 <ArrowLeft />
                 Précédent
               </Button>
             ) : null}
-            <Button type="button" onClick={forward} disabled={pending}>
+            <Button type="button" onClick={forward} disabled={pending || generating}>
               {pending ? "Lecture du site…" : step === STEPS - 1 ? "Lancer l'audit" : "Continuer"}
               {pending || step === STEPS - 1 ? null : <ArrowRight />}
             </Button>
@@ -372,7 +440,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                 Passer l'explication
               </button>
               <Button type="button" onClick={() => (coachPage === 0 ? setCoachPage(1) : setCoach(false))}>
-                {coachPage === 0 ? "Suivant" : "Écrire les questions"}
+                {coachPage === 0 ? "Suivant" : "Relire les questions"}
               </Button>
             </div>
           </div>
