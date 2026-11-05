@@ -13,7 +13,7 @@ from services.metrics import domain_gaps, market_rivals
 from services.tracker import BatchResult
 from services.llm_analysis import BrandMention, ResponseAnalysis, analyze_response, analyze_runs, clean_analysis
 from seed import DEMO_EMAIL
-from store import StoredRun, Workspace, store
+from store import Query, StoredRun, Workspace, store
 from tests.test_api import _token, client  # noqa: F401  (fixture)
 
 BRAND = Entity("Northwind", "northwind.io", "brand")
@@ -198,8 +198,62 @@ def test_assistants_and_general_sites_are_not_rivals_or_sources():
         ],
     )
     workspace = Workspace(
-        id="w", user_id="u", name="Atelier", brand_name="Atelier", domain="atelier.fr", sector="Logiciel", runs=[run]
+        id="w",
+        user_id="u",
+        name="Atelier",
+        brand_name="Atelier",
+        domain="atelier.fr",
+        sector="Logiciel",
+        queries=[Query(id="q", prompt="Quel logiciel à Lyon ?", active=True)],
+        runs=[run],
     )
     assert [item.name for item in market_rivals(workspace)] == ["Lumenboard"]
     domains = [item.domain for item in domain_gaps(workspace)]
     assert domains == ["journal-lyon.fr"]
+
+
+def test_rivals_ignore_questions_past_the_daily_allowance():
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    queries = [Query(id=f"q{index}", prompt=f"Question {index} pour le suivi", active=True) for index in range(11)]
+    first = StoredRun(
+        id="first",
+        query_id="q0",
+        query_prompt=queries[0].prompt,
+        provider="openai",
+        model="gpt-4o",
+        status="completed",
+        source="live",
+        response_text="Lumenboard.",
+        citations=[],
+        error=None,
+        created_at=now,
+        analysis=[AnalyzedMention("Lumenboard", "lumenboard.com", 1, "recommended", 0.4, "Lumenboard")],
+    )
+    last = StoredRun(
+        id="last",
+        query_id="q10",
+        query_prompt=queries[10].prompt,
+        provider="openai",
+        model="gpt-4o",
+        status="completed",
+        source="live",
+        response_text="Agence Oubliee.",
+        citations=[],
+        error=None,
+        created_at=now,
+        analysis=[AnalyzedMention("Agence Oubliee", "oubliee.fr", 1, "recommended", 0.4, "Agence Oubliee")],
+    )
+    workspace = Workspace(
+        id="w",
+        user_id="u",
+        name="Atelier",
+        brand_name="Atelier",
+        domain="atelier.fr",
+        sector="Logiciel",
+        queries=queries,
+        runs=[first, last],
+        trial_ends_at=now + timedelta(days=3),
+    )
+    assert [item.name for item in market_rivals(workspace)] == ["Lumenboard"]

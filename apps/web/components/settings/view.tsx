@@ -180,9 +180,9 @@ function SettingsData() {
             </CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
               {billing.data?.plan
-                ? `Votre forfait envoie ${allowance} questions par jour.`
+                ? `Le suivi part du haut de la liste et s'arrête à ${allowance} questions par jour. Les suivantes ne sont pas envoyées.`
                 : billing.data?.trialActive
-                  ? `L'essai envoie ${allowance} questions par jour.`
+                  ? `L'essai part du haut de la liste et s'arrête à ${allowance} questions par jour. Les suivantes ne sont pas envoyées.`
                   : "L'essai est terminé. Choisissez un forfait pour continuer."}
             </p>
           </div>
@@ -223,6 +223,9 @@ function SettingsData() {
                 {proposed.has(query.prompt) ? (
                   <Badge className="w-fit">Proposée par l&apos;IA, pas encore enregistrée</Badge>
                 ) : null}
+                {query.active && query.prompt.trim() && allowance > 0 && activeRank(index) > allowance ? (
+                  <p className="text-xs text-muted-foreground">Au-delà des {allowance} questions du jour.</p>
+                ) : null}
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input
@@ -241,6 +244,10 @@ function SettingsData() {
       </Card>
     </div>
   );
+
+  function activeRank(index: number) {
+    return form.queries.slice(0, index + 1).filter((item) => item.active && item.prompt.trim()).length;
+  }
 
   function updateQuery(index: number, patch: Partial<SettingsInput["queries"][number]>) {
     setForm({

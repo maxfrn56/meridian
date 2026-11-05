@@ -37,6 +37,7 @@ from services.analyzer import (
     normalize_domain,
     share_of_voice,
 )
+from services.billing import counted_queries
 from services.llm import redact_secrets
 from services.recommender import DomainGap, build_recommendations
 from store import StoredAudit, StoredRun, Workspace
@@ -77,14 +78,14 @@ def _named_brands(run: StoredRun) -> list[tuple[str, str]]:
 def market_rivals(workspace: Workspace) -> list[Rival]:
     """Les concurrents ne sont pas déclarés : ce sont les marques que les moteurs nomment avec ou à la place du client.
 
-    Classées par nombre de réponses qui les nomment, toutes questions et tous moteurs confondus.
+    Classées par nombre de réponses qui les nomment, sur les premières questions de la liste.
     """
     brand = [Entity(workspace.brand_name, workspace.domain, "brand")]
     counts: dict[str, int] = defaultdict(int)
     names: dict[str, str] = {}
     domains: dict[str, str] = {}
     providers: dict[str, set[str]] = defaultdict(set)
-    for run in _completed(workspace):
+    for run in measured_runs(workspace):
         seen: set[str] = set()
         for name, domain in _named_brands(run):
             key = fold(name)
@@ -167,8 +168,14 @@ def _completed(workspace: Workspace) -> list[StoredRun]:
     return [run for run in workspace.runs if run.status == "completed"]
 
 
+def measured_runs(workspace: Workspace) -> list[StoredRun]:
+    """Réponses des premières questions actives, celles que le forfait prend en compte."""
+    allowed = {query.id for query in counted_queries(workspace)}
+    return [run for run in _completed(workspace) if run.query_id in allowed]
+
+
 def llm_mode(workspace: Workspace) -> str:
-    completed = _completed(workspace)
+    completed = measured_runs(workspace)
     if not completed:
         modes = {settings.provider_mode(provider) for provider in workspace.providers}
     else:
@@ -187,7 +194,7 @@ def domain_gaps(workspace: Workspace) -> list[DomainGap]:
     brand = entities[0]
     citations: dict[str, int] = defaultdict(int)
     missing: dict[str, int] = defaultdict(int)
-    for run in _completed(workspace):
+    for run in measured_runs(workspace):
         mentions = run_mentions(run, entities)
         cited = brand_is_cited(mentions, run.citations, brand)
         seen: set[str] = set()
@@ -219,7 +226,7 @@ def _sov_for(runs: list[StoredRun], entities: list[Entity]) -> tuple[dict[str, f
 def build_overview(workspace: Workspace) -> OverviewOut:
     entities = entities_of(workspace)
     brand = entities[0]
-    completed = _completed(workspace)
+    completed = measured_runs(workspace)
     by_week: dict[datetime, list[StoredRun]] = defaultdict(list)
     for run in completed:
         by_week[week_start(run.created_at)].append(run)
@@ -283,7 +290,7 @@ def build_overview(workspace: Workspace) -> OverviewOut:
             citation_rate_delta=None if current_rate is None or previous_rate is None else current_rate - previous_rate,
             share_of_voice=current_sov,
             share_of_voice_delta=None if current_sov is None or previous_sov is None else current_sov - previous_sov,
-            queries_tracked=sum(1 for query in workspace.queries if query.active),
+            queries_tracked=len(counted_queries(workspace)),
             runs_completed=len(completed),
         ),
         trend=trend,

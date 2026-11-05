@@ -377,7 +377,10 @@ class Store:
             brand_name=row.brand_name,
             domain=row.domain,
             sector=row.sector,
-            queries=[Query(id=item.id, prompt=item.prompt, active=item.active) for item in row.queries],
+            queries=[
+                Query(id=item.id, prompt=item.prompt, active=item.active)
+                for item in sorted(row.queries, key=lambda item: (item.position, item.prompt))
+            ],
             runs=[_run(item) for item in runs],
             audits=[_audit(item) for item in audits],
             plan_id=row.plan_id,

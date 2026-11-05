@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from models.schemas import PlanOut, SubscriptionOut
-from store import Workspace, store
+from store import Query, Workspace, store
 
 TRIAL_DAYS = 7
 TRIAL_PER_DAY = 10
@@ -97,6 +97,22 @@ def snapshot(workspace: Workspace) -> SubscriptionOut:
         trial_active=active,
         trial_ends_at=fresh.trial_ends_at,
     )
+
+
+def quota_remaining(workspace: Workspace) -> int:
+    fresh = store.current_workspace(workspace.user_id)
+    allowance = questions_allowed(fresh.plan_id, fresh.trial_ends_at)
+    return allowance - fresh.questions_used
+
+
+def counted_queries(workspace: Workspace) -> list[Query]:
+    """Les questions qui comptent : les premières de la liste, actives, dans la limite du jour."""
+    active = [query for query in workspace.queries if query.active]
+    try:
+        allowance = questions_allowed(workspace.plan_id, workspace.trial_ends_at)
+    except ValueError:
+        return active
+    return active[: max(0, allowance)]
 
 
 def assert_quota(workspace: Workspace, questions: int) -> None:

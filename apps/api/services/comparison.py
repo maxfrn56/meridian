@@ -13,7 +13,7 @@ from models.schemas import (
     ComparisonOut,
 )
 from services.analyzer import Entity, is_generic_platform, normalize_domain
-from services.metrics import entities_of, run_mentions, week_start
+from services.metrics import entities_of, measured_runs, run_mentions, week_start
 from store import StoredRun, Workspace
 
 METHOD = (
@@ -48,7 +48,7 @@ def _mean(values: list[float]) -> float | None:
 def build_comparison(workspace: Workspace) -> ComparisonOut:
     entities = entities_of(workspace)
     brand = entities[0]
-    completed = [run for run in workspace.runs if run.status == "completed"]
+    completed = measured_runs(workspace)
     latest = max((week_start(run.created_at) for run in completed), default=None)
     runs = [run for run in completed if latest and week_start(run.created_at) == latest]
     prepared: list[tuple[StoredRun, dict[str, object]]] = []

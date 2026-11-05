@@ -4,7 +4,7 @@ import asyncio
 import uuid
 from datetime import datetime, timezone
 from services.auditor import crawl_site
-from services.billing import assert_quota
+from services.billing import assert_quota, quota_remaining
 from services.llm_analysis import analysis_version, analyze_runs
 from services import progress
 from services.metrics import entities_of
@@ -45,7 +45,12 @@ def tracking_plan(
         raise ValueError("Aucune requête active à envoyer.")
     if not workspace.brand_name:
         raise ValueError("Renseignez le nom de la marque avant de lancer un suivi.")
-    assert_quota(workspace, len(queries))
+    # L'ordre des réglages est l'ordre de pertinence : le quota du jour est dépensé en partant du haut.
+    remaining = quota_remaining(workspace)
+    if remaining < len(queries):
+        if remaining <= 0:
+            assert_quota(workspace, len(queries))
+        queries = queries[:remaining]
     # Une étape de lecture par question, en plus de chaque envoi.
     steps = len(queries) * (len(selected) + 1)
     return workspace, queries, selected, steps

@@ -146,12 +146,48 @@ def test_subscription_limits_questions_sent_this_month(client: TestClient):
     assert switched.json()["questionsRemaining"] == 20
     sent = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
     assert sent.status_code == 200
+    # Douze questions envoyées : il en reste huit. Le second lancement reprend les huit premières.
+    again = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
+    assert again.status_code == 200
     blocked = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
     assert blocked.status_code == 400
     assert "aujourd'hui" in blocked.json()["detail"]
     after = client.get("/api/v1/billing", headers=headers).json()
-    assert after["questionsUsed"] == 12
+    assert after["questionsUsed"] == 20
     assert after["trialActive"] is False
+
+
+def test_tracking_uses_the_first_questions_in_settings(client: TestClient):
+    from datetime import datetime, timezone
+
+    from models.tables import WorkspaceRow
+    from seed import QUERIES
+
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    switched = client.post("/api/v1/billing", headers=headers, json={"planId": "essentiel"})
+    assert switched.status_code == 200
+    user = store.user_by_email(DEMO_EMAIL)
+    assert user is not None
+    workspace = store.workspace_for(user.id)
+    assert workspace is not None
+    with store._session() as session, session.begin():
+        row = session.get(WorkspaceRow, workspace.id)
+        assert row is not None
+        row.questions_used = 17
+        row.period_month = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    before = client.get("/api/v1/tracking", headers=headers).json()
+    sent = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
+    assert sent.status_code == 200
+    after = client.get("/api/v1/tracking", headers=headers).json()
+    assert [item["prompt"] for item in after["queries"]] == list(QUERIES)
+    before_ids = {item["prompt"]: item["runs"]["perplexity"]["id"] for item in before["queries"]}
+    after_ids = {item["prompt"]: item["runs"]["perplexity"]["id"] for item in after["queries"]}
+    for prompt in QUERIES[:3]:
+        assert after_ids[prompt] != before_ids[prompt]
+    for prompt in QUERIES[3:]:
+        assert after_ids[prompt] == before_ids[prompt]
+    billing = client.get("/api/v1/billing", headers=headers).json()
+    assert billing["questionsUsed"] == 20
 
 
 def test_settings_require_exactly_three_engines(client: TestClient):
