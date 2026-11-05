@@ -10,7 +10,7 @@ from services.auditor import audit_documents
 from services.prospects import seed_prospects
 from services.simulator import simulate_answer
 from services.tracker import citations_from_sources, entities_from_workspace
-from store import Competitor, Query, StoredAudit, StoredRun, User, Workspace, store
+from store import Query, StoredAudit, StoredRun, User, Workspace, store
 
 DEMO_EMAIL = "demo@geo.dev"
 DEMO_PASSWORD = "meridian"
@@ -30,12 +30,6 @@ QUERIES = (
     "Où trouver des benchmarks de rétention SaaS B2B fiables ?",
 )
 
-COMPETITORS = (
-    ("Lumenboard", "lumenboard.com"),
-    ("Stackmetric", "stackmetric.io"),
-    ("ClarityForge", "clarityforge.com"),
-    ("Pulsegrid", "pulsegrid.dev"),
-)
 
 
 def _rng(*parts: object) -> random.Random:
@@ -114,10 +108,6 @@ def seed_demo(target: store.__class__ | None = None) -> None:
         password_hash=hash_password(DEMO_PASSWORD),
         email_verified=True,
     )
-    competitors = [
-        Competitor(id=uuid.uuid5(uuid.NAMESPACE_URL, domain).hex, name=name, domain=domain)
-        for name, domain in COMPETITORS
-    ]
     queries = [
         Query(id=uuid.uuid5(uuid.NAMESPACE_URL, prompt).hex, prompt=prompt, active=True) for prompt in QUERIES
     ]
@@ -128,18 +118,13 @@ def seed_demo(target: store.__class__ | None = None) -> None:
         brand_name="Northwind",
         domain="northwind.io",
         sector="Product analytics",
-        competitors=competitors,
         queries=queries,
         plan_id="croissance",
         period_month=datetime.now(timezone.utc).strftime("%Y-%m"),
         questions_used=0,
     )
     destination.add_user(user, workspace)
-    entities = entities_from_workspace(
-        workspace.brand_name,
-        workspace.domain,
-        [(item.name, item.domain) for item in competitors],
-    )
+    entities = entities_from_workspace(workspace.brand_name, workspace.domain)
     now = datetime.now(timezone.utc)
     runs: list[StoredRun] = []
     for week in range(8):

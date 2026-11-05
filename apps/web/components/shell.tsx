@@ -103,7 +103,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="no-print sticky top-0 hidden h-screen flex-col border-r border-border bg-[#fbfbfc] px-3 py-5 lg:flex">
-        <Link href={home} className="mb-8 flex items-center gap-2.5 px-2">
+        <Link href={home} className="logo-turn mb-8 flex items-center gap-2.5 px-2">
           <Mark />
           <span>
             <span className="block text-base font-semibold tracking-[-0.02em]">Meridian</span>
@@ -128,7 +128,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="min-w-0">
         <div className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-md lg:hidden">
-          <Link href={home} className="flex items-center gap-2 font-semibold">
+          <Link href={home} className="logo-turn flex items-center gap-2 font-semibold">
             <Mark />
             Meridian
           </Link>

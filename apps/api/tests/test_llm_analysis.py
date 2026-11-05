@@ -9,6 +9,7 @@ import httpx2
 
 import services.orchestrator
 from services.analyzer import AnalyzedMention, Entity, mentions_from_analysis
+from services.metrics import market_rivals
 from services.llm_analysis import BrandMention, ResponseAnalysis, analyze_response, analyze_runs, clean_analysis
 from seed import DEMO_EMAIL
 from store import store
@@ -146,7 +147,6 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
     assert stored.analysis_version.endswith("/v1")
     assert [item.name for item in stored.analysis] == ["Lumenboard", "Northwind", "Datadash"]
 
-    discovered = client.get("/api/v1/audit", headers=headers).json()["discoveredCompetitors"]
-    assert {"name": "Datadash", "domain": "datadash.com"}.items() <= next(
-        item for item in discovered if item["name"] == "Datadash"
-    ).items()
+    workspace = store.workspace_for(store.user_by_email(DEMO_EMAIL).id)
+    datadash = next(item for item in market_rivals(workspace) if item.name == "Datadash")
+    assert (datadash.domain, datadash.mentions, datadash.providers) == ("datadash.com", 2, ("openai",))

@@ -74,10 +74,12 @@ def test_login_overview_and_tracking_contract(client: TestClient):
     audit = client.get("/api/v1/audit", headers=headers)
     assert audit.status_code == 200
     assert audit.json()["audit"]["recommendations"]
+    # Les concurrents ne sont pas déclarés : ce sont les marques les plus nommées dans les réponses.
     discovered = audit.json()["discoveredCompetitors"]
-    assert discovered
-    declared = {"Northwind", "Lumenboard", "Stackmetric", "ClarityForge", "Pulsegrid"}
-    assert all(item["name"] not in declared for item in discovered)
+    names = [item["name"] for item in discovered]
+    assert names[0] == "Lumenboard"
+    assert "Northwind" not in names
+    assert [item["mentions"] for item in discovered] == sorted((item["mentions"] for item in discovered), reverse=True)
     assert any(item["id"] == "unlisted-competitors" and item["steps"] for item in audit.json()["audit"]["recommendations"])
 
 
@@ -90,13 +92,10 @@ def test_comparison_ranks_brand_against_competitors(client: TestClient):
     assert body["runs"] > 0
     assert body["entities"][0]["name"] == "Northwind"
     assert body["entities"][0]["kind"] == "brand"
-    assert {item["name"] for item in body["entities"]} == {
-        "Northwind",
-        "Lumenboard",
-        "Stackmetric",
-        "ClarityForge",
-        "Pulsegrid",
-    }
+    rivals = [item["name"] for item in body["entities"][1:]]
+    assert len(rivals) == 5
+    assert all(item["kind"] == "competitor" for item in body["entities"][1:])
+    assert {"Lumenboard", "Stackmetric"} <= set(rivals)
     assert all(0 <= item["visibility"] <= 1 for item in body["entities"])
     assert all(0 <= item["sourcedRate"] <= 1 for item in body["entities"])
     assert all(0 <= item["ownSourceRate"] <= 1 for item in body["entities"])
@@ -206,18 +205,13 @@ def test_stripe_checkout_opens_test_session_and_webhook_activates_plan(client: T
     assert client.get("/api/v1/billing", headers=headers).json()["plan"] is None
 
 
-def test_settings_reject_a_sixth_competitor(client: TestClient):
-    token = _token(client)
-    current = client.get("/api/v1/settings", headers={"Authorization": f"Bearer {token}"})
-    payload = current.json()
-    payload["competitors"].extend(
-        [
-            {"name": "Extra", "domain": "extra.example"},
-            {"name": "Encore", "domain": "encore.example"},
-        ]
-    )
-    response = client.put("/api/v1/settings", headers={"Authorization": f"Bearer {token}"}, json=payload)
-    assert response.status_code == 422
+def test_settings_no_longer_carry_competitors(client: TestClient):
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    current = client.get("/api/v1/settings", headers=headers).json()
+    assert "competitors" not in current
+    response = client.put("/api/v1/settings", headers=headers, json={**current, "competitors": [{"name": "X", "domain": "x.io"}]})
+    assert response.status_code == 200
+    assert "competitors" not in response.json()
 
 
 def test_tracking_run_appends_results(client: TestClient):
@@ -342,10 +336,8 @@ def test_editing_settings_keeps_ids_of_unchanged_items(client: TestClient):
     headers = {"Authorization": f"Bearer {_token(client)}"}
     before = client.get("/api/v1/settings", headers=headers).json()
     payload = dict(before)
-    payload["competitors"] = before["competitors"][1:] + [{"name": "Nouveau", "domain": "nouveau.example"}]
     payload["queries"] = before["queries"][:3]
     after = client.put("/api/v1/settings", headers=headers, json=payload).json()
-    assert [item["id"] for item in after["competitors"][:-1]] == [item["id"] for item in before["competitors"][1:]]
     assert [item["id"] for item in after["queries"]] == [item["id"] for item in before["queries"][:3]]
     # Les réponses déjà collectées pour les prompts retirés restent en base.
     tracking = client.get("/api/v1/tracking", headers=headers).json()

@@ -32,7 +32,14 @@ INTROS = (
     "Les comparatifs récents mettent en avant un petit nombre d'outils.",
     "Voici les options les plus citées par les équipes produit.",
 )
-# Marques souvent citées par les moteurs, mais pas déclarées par l'entreprise.
+# Le marché simulé : les concurrents que les moteurs citent le plus souvent sur ces questions.
+MARKET = (
+    ("Lumenboard", "lumenboard.com"),
+    ("Stackmetric", "stackmetric.io"),
+    ("ClarityForge", "clarityforge.com"),
+    ("Pulsegrid", "pulsegrid.dev"),
+)
+# Marques citées plus rarement.
 OUTSIDERS = (
     ("Amplitude", "amplitude.com"),
     ("Mixpanel", "mixpanel.com"),
@@ -86,10 +93,12 @@ def simulate_answer(
     rng: random.Random,
     week_index: int = 7,
 ) -> tuple[str, list[Source]]:
-    chosen = [entity for entity in entities if _include(rng, entity, prompt, week_index)]
-    if not chosen and entities:
-        competitors = [entity for entity in entities if entity.kind == "competitor"]
-        chosen = [rng.choice(competitors or entities)]
+    brands = [entity for entity in entities if entity.kind == "brand"]
+    taken = {entity.name.lower() for entity in brands}
+    market = [Entity(name, domain, "competitor") for name, domain in MARKET if name.lower() not in taken]
+    chosen = [entity for entity in brands + market if _include(rng, entity, prompt, week_index)]
+    if not chosen and market:
+        chosen = [rng.choice(market)]
     rng.shuffle(chosen)
 
     lines = [rng.choice(INTROS), f"Sujet : {prompt.strip()}"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -62,10 +63,7 @@ async def _call_openai(prompt: str) -> ProviderResult:
             json={
                 "model": MODELS["openai"],
                 "tools": [{"type": "web_search"}],
-                "instructions": (
-                    "Tu réponds en français, de façon comparative et sourcée. "
-                    "N'avantage aucune marque qui ne serait pas étayée par les sources."
-                ),
+                # La question part telle quelle, sans consigne : on mesure ce qu'un utilisateur verrait.
                 "input": prompt,
             },
         )
@@ -112,7 +110,7 @@ async def _call_perplexity(prompt: str) -> ProviderResult:
             headers={"Authorization": f"Bearer {settings.perplexity_api_key}"},
             json={
                 "effort": "fast",
-                "input": "Réponds en français, cite tes sources, sans favoriser une marque a priori.\n\n" + prompt,
+                "input": prompt,
             },
         )
         response.raise_for_status()
@@ -126,13 +124,12 @@ async def _call_perplexity(prompt: str) -> ProviderResult:
 
 
 async def _call_gemini(prompt: str) -> ProviderResult:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{MODELS['gemini']}:generateContent?key={settings.gemini_api_key}"
-    )
+    # La clé passe en en-tête : dans l'URL, elle se retrouvait dans les messages d'erreur.
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODELS['gemini']}:generateContent"
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post(
             url,
+            headers={"x-goog-api-key": settings.gemini_api_key},
             json={
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                 "tools": [{"google_search": {}}],
@@ -175,11 +172,58 @@ async def complete(provider: str, prompt: str, entities: list[Entity], nonce: st
             return await _call_gemini(prompt)
         raise ValueError(f"Moteur inconnu : {provider}")
     except (httpx.HTTPError, KeyError, IndexError, ValueError) as error:
-        message = str(error).strip() or error.__class__.__name__
         return ProviderResult(
             text="",
             sources=[],
             model=MODELS.get(provider, provider),
             source_mode="live",
-            error=message[:500],
+            error=describe_error(error),
         )
+
+
+_KEY_PARAM = re.compile(r"(key=)[^&\s'\"]+", re.IGNORECASE)
+_KEY_TOKEN = re.compile(r"\b(?:sk|pplx|AIza)[-_A-Za-z0-9]{8,}")
+STATUS_LABELS = {
+    400: "requête refusée",
+    401: "clé refusée",
+    403: "accès refusé",
+    404: "modèle ou adresse introuvable",
+    429: "quota ou limite de débit atteint",
+}
+
+
+def redact_secrets(text: str) -> str:
+    """Masque les clés d'API : les erreurs sont affichées au client."""
+    return _KEY_TOKEN.sub("•••", _KEY_PARAM.sub(r"\1•••", text))
+
+
+def describe_error(error: Exception) -> str:
+    """Une phrase lisible pour le tableau de bord, sans URL ni clé."""
+    if isinstance(error, httpx.TimeoutException):
+        message = "Le moteur n'a pas répondu à temps (60 s)."
+    elif isinstance(error, httpx.HTTPStatusError):
+        status = error.response.status_code
+        message = f"Erreur {status} ({STATUS_LABELS.get(status, 'erreur du moteur')})"
+        detail = _error_detail(error.response)
+        if detail:
+            message += f" : {detail}"
+    elif isinstance(error, httpx.HTTPError):
+        message = f"Connexion au moteur impossible ({error.__class__.__name__})."
+    else:
+        message = "Réponse du moteur sans contenu exploitable."
+    return redact_secrets(message)[:500]
+
+
+def _error_detail(response: httpx.Response) -> str:
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    error = body.get("error")
+    if isinstance(error, dict):
+        return str(error.get("message") or "").strip()[:300]
+    if isinstance(error, str):
+        return error.strip()[:300]
+    return str(body.get("detail") or "").strip()[:300]

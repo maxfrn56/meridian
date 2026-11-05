@@ -6,21 +6,21 @@ const PLANS = [
   {
     name: "Essentiel",
     pitch: "Pour mesurer votre point de départ.",
-    price: "149 €",
+    price: "79,9 €",
     period: "HT / mois",
-    questions: "50 questions suivies",
-    features: ["3 concurrents suivis", "1 audit de site par mois", "2 utilisateurs", "Rapport mensuel en PDF"],
+    questions: "5 questions par mois",
+    features: ["Concurrents repérés dans les réponses", "1 audit de site par mois", "2 utilisateurs", "Rapport mensuel en PDF"],
     cta: "Lancer l'audit gratuit",
     featured: false,
   },
   {
     name: "Croissance",
     pitch: "Pour gagner des places face à vos concurrents.",
-    price: "390 €",
+    price: "189,9 €",
     period: "HT / mois",
-    questions: "200 questions suivies",
+    questions: "20 questions par mois",
     features: [
-      "5 concurrents suivis",
+      "Concurrents repérés dans les réponses",
       "Audit de site chaque semaine",
       "5 utilisateurs",
       "Sources citées et actions priorisées",
@@ -30,18 +30,18 @@ const PLANS = [
     featured: true,
   },
   {
-    name: "Entreprise",
-    pitch: "Pour plusieurs marques, langues ou pays.",
-    price: "Sur devis",
-    period: "",
-    questions: "À partir de 1 000 questions",
+    name: "Référence",
+    pitch: "Pour couvrir plusieurs produits et plusieurs zones.",
+    price: "389,9 €",
+    period: "HT / mois",
+    questions: "60 questions par mois",
     features: [
-      "Concurrents et audits illimités",
-      "Plusieurs marques et langues",
-      "Accès API et exports",
-      "Accompagnement dédié",
+      "Concurrents repérés dans les réponses",
+      "Audits illimités",
+      "Sources citées et actions priorisées",
+      "Plusieurs produits et plusieurs zones",
     ],
-    cta: "Commencer par l'audit",
+    cta: "Lancer l'audit gratuit",
     featured: false,
   },
 ];
@@ -51,9 +51,9 @@ export function Pricing() {
     <section id="tarifs" className="lp-section" aria-labelledby="pricing-title">
       <div className="lp-container">
         <Reveal className="lp-section-head">
-          <MaskedTitle id="pricing-title" className="lp-h2" text="Un forfait selon le nombre de questions suivies." />
+          <MaskedTitle id="pricing-title" className="lp-h2" text="Un forfait selon le nombre de questions envoyées." />
           <p className="lp-lead">
-            Tous les forfaits incluent ChatGPT, Perplexity et Gemini, l&apos;analyse quotidienne et l&apos;audit de votre
+            Chaque question est posée à ChatGPT, Perplexity et Gemini. Tous les forfaits incluent l&apos;audit de votre
             site. Sans engagement, résiliable chaque mois.
           </p>
         </Reveal>

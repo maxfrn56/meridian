@@ -131,6 +131,7 @@ export type Audit = {
   createdAt: string;
 };
 
+/** Marque que les moteurs nomment sur les questions du client. Le domaine peut être vide. */
 export type DiscoveredCompetitor = {
   name: string;
   domain: string;
@@ -149,7 +150,6 @@ export type Settings = {
   brandName: string;
   domain: string;
   sector: string;
-  competitors: { id: string; name: string; domain: string }[];
   queries: { id: string; prompt: string; active: boolean }[];
 };
 
@@ -297,6 +297,5 @@ export type SettingsInput = {
   brandName: string;
   domain: string;
   sector: string;
-  competitors: { name: string; domain: string }[];
   queries: { prompt: string; active: boolean }[];
 };

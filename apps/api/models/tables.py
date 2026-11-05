@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, true
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # Python 3.9 ne sait pas évaluer `datetime | None`. SQLAlchemy le fait au chargement des tables.
@@ -85,21 +85,7 @@ class WorkspaceRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped[UserRow] = relationship(back_populates="workspace")
-    competitors: Mapped[list[CompetitorRow]] = relationship(
-        cascade="all, delete-orphan", order_by="CompetitorRow.position"
-    )
     queries: Mapped[list[QueryRow]] = relationship(cascade="all, delete-orphan", order_by="QueryRow.position")
-
-
-class CompetitorRow(Base):
-    __tablename__ = "competitors"
-    __table_args__ = (UniqueConstraint("workspace_id", "domain"),)
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(120))
-    domain: Mapped[str] = mapped_column(String(253))
-    position: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class QueryRow(Base):

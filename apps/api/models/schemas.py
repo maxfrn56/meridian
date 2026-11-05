@@ -153,11 +153,6 @@ class AuthOut(APIModel):
     user: UserOut
 
 
-class CompetitorIn(APIModel):
-    name: str = Field(min_length=1, max_length=80)
-    domain: str = Field(min_length=3, max_length=160)
-
-
 class QueryIn(APIModel):
     prompt: str = Field(min_length=8, max_length=400)
     active: bool = True
@@ -168,22 +163,13 @@ class SettingsIn(APIModel):
     brand_name: str = Field(min_length=1, max_length=80)
     domain: str = Field(min_length=3, max_length=160)
     sector: str = Field(min_length=2, max_length=80)
-    competitors: list[CompetitorIn] = Field(default_factory=list)
     queries: list[QueryIn] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def enforce_limits(self) -> "SettingsIn":
-        if len(self.competitors) > 5:
-            raise ValueError("Cinq concurrents maximum.")
         if len(self.queries) > 60:
             raise ValueError("Soixante requêtes maximum.")
         return self
-
-
-class CompetitorOut(APIModel):
-    id: str
-    name: str
-    domain: str
 
 
 class QueryOut(APIModel):
@@ -192,12 +178,24 @@ class QueryOut(APIModel):
     active: bool
 
 
+class GenerateQuestionsIn(APIModel):
+    """Valeurs du formulaire, enregistrées ou non : la génération part de ce que le client voit."""
+
+    brand_name: str = Field(min_length=1, max_length=80)
+    domain: str = Field(min_length=3, max_length=160)
+    sector: str = Field(default="", max_length=80)
+    existing: list[str] = Field(default_factory=list, max_length=60)
+
+
+class GenerateQuestionsOut(APIModel):
+    questions: list[str]
+
+
 class SettingsOut(APIModel):
     workspace_name: str
     brand_name: str
     domain: str
     sector: str
-    competitors: list[CompetitorOut]
     queries: list[QueryOut]
 
 

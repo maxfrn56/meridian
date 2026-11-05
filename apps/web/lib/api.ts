@@ -96,3 +96,8 @@ export function resetPassword(token: string, password: string) {
 export function saveSettings(input: SettingsInput) {
   return api<Settings>("/settings", { method: "PUT", body: JSON.stringify(input) });
 }
+
+/** Questions proposées par Claude, autant que le forfait en envoie par mois. Rien n'est enregistré. */
+export function generateQuestions(input: Pick<SettingsInput, "brandName" | "domain" | "sector"> & { existing: string[] }) {
+  return api<{ questions: string[] }>("/settings/queries/generate", { method: "POST", body: JSON.stringify(input) });
+}

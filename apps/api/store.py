@@ -18,7 +18,6 @@ from models.tables import (
     AuditRow,
     Base,
     CitationRow,
-    CompetitorRow,
     MentionRow,
     QueryRow,
     TrackingRunRow,
@@ -44,13 +43,6 @@ class User:
     reset_expires_at: datetime | None = None
     last_verify_mail_at: datetime | None = None
     last_reset_mail_at: datetime | None = None
-
-
-@dataclass
-class Competitor:
-    id: str
-    name: str
-    domain: str
 
 
 @dataclass
@@ -93,7 +85,6 @@ class Workspace:
     brand_name: str
     domain: str
     sector: str
-    competitors: list[Competitor] = field(default_factory=list)
     queries: list[Query] = field(default_factory=list)
     runs: list[StoredRun] = field(default_factory=list)
     audits: list[StoredAudit] = field(default_factory=list)
@@ -248,10 +239,6 @@ class Store:
                     plan_id=workspace.plan_id,
                     period_month=workspace.period_month,
                     questions_used=workspace.questions_used,
-                    competitors=[
-                        CompetitorRow(id=item.id, name=item.name, domain=item.domain, position=index)
-                        for index, item in enumerate(workspace.competitors)
-                    ],
                     queries=[
                         QueryRow(id=item.id, prompt=item.prompt, active=item.active, position=index)
                         for index, item in enumerate(workspace.queries)
@@ -353,7 +340,7 @@ class Store:
         return session.scalar(
             select(WorkspaceRow)
             .where(WorkspaceRow.user_id == user_id)
-            .options(selectinload(WorkspaceRow.competitors), selectinload(WorkspaceRow.queries))
+            .options(selectinload(WorkspaceRow.queries))
         )
 
     def _load(self, session: Session, row: WorkspaceRow) -> Workspace:
@@ -373,7 +360,6 @@ class Store:
             brand_name=row.brand_name,
             domain=row.domain,
             sector=row.sector,
-            competitors=[Competitor(id=item.id, name=item.name, domain=item.domain) for item in row.competitors],
             queries=[Query(id=item.id, prompt=item.prompt, active=item.active) for item in row.queries],
             runs=[_run(item) for item in runs],
             audits=[_audit(item) for item in audits],
@@ -410,27 +396,13 @@ class Store:
         brand_name: str,
         domain: str,
         sector: str,
-        competitors: list[tuple[str, str]],
         queries: list[tuple[str, bool]],
     ) -> Workspace:
         cleaned_domain = normalize_domain(domain)
         if not cleaned_domain:
             raise ValueError("Le domaine de la marque est requis.")
-        if len(competitors) > 5:
-            raise ValueError("Cinq concurrents maximum.")
         if len(queries) > 60:
             raise ValueError("Soixante requêtes maximum.")
-
-        seen_domains: set[str] = set()
-        wanted_competitors: list[tuple[str, str]] = []
-        for name, raw_domain in competitors:
-            competitor_domain = normalize_domain(raw_domain)
-            if competitor_domain in seen_domains:
-                raise ValueError(f"Le domaine {competitor_domain} est en double.")
-            if competitor_domain == cleaned_domain:
-                raise ValueError("Un concurrent ne peut pas partager le domaine de la marque.")
-            seen_domains.add(competitor_domain)
-            wanted_competitors.append((name.strip(), competitor_domain))
 
         seen_prompts: set[str] = set()
         wanted_queries: list[tuple[str, bool]] = []
@@ -446,16 +418,6 @@ class Store:
             if row is None:
                 raise KeyError(user_id)
             # On garde les identifiants existants : l'historique des runs y reste rattaché.
-            current_competitors = {item.domain: item for item in row.competitors}
-            next_competitors: list[CompetitorRow] = []
-            for index, (name, competitor_domain) in enumerate(wanted_competitors):
-                item = current_competitors.pop(competitor_domain, None)
-                if item is None:
-                    item = CompetitorRow(id=uuid.uuid4().hex, domain=competitor_domain)
-                item.name = name
-                item.position = index
-                next_competitors.append(item)
-
             current_queries = {item.prompt: item for item in row.queries}
             next_queries: list[QueryRow] = []
             for index, (prompt, active) in enumerate(wanted_queries):
@@ -466,16 +428,10 @@ class Store:
                 item.position = index
                 next_queries.append(item)
 
-            # Supprimer d'abord les concurrents retirés, sinon la contrainte (espace, domaine) peut gêner.
-            for item in current_competitors.values():
-                session.delete(item)
-            session.flush()
-
             row.name = workspace_name.strip()
             row.brand_name = brand_name.strip()
             row.domain = cleaned_domain
             row.sector = sector.strip()
-            row.competitors = next_competitors
             row.queries = next_queries
             session.flush()
             return self._load(session, row)
