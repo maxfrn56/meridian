@@ -19,12 +19,13 @@ from models.tables import (
     Base,
     CitationRow,
     CompetitorRow,
+    MentionRow,
     QueryRow,
     TrackingRunRow,
     UserRow,
     WorkspaceRow,
 )
-from services.analyzer import Citation, normalize_domain
+from services.analyzer import AnalyzedMention, Citation, normalize_domain
 from services.auditor import AuditDraft, Check
 
 
@@ -72,6 +73,9 @@ class StoredRun:
     citations: list[Citation]
     error: str | None
     created_at: datetime
+    # None : pas d'analyse LLM, les métriques retombent sur l'analyse par mots-clés.
+    analysis: list[AnalyzedMention] | None = None
+    analysis_version: str = ""
 
 
 @dataclass
@@ -145,7 +149,37 @@ def _run(row: TrackingRunRow) -> StoredRun:
         ],
         error=row.error,
         created_at=_aware(row.created_at),
+        analysis=(
+            [
+                AnalyzedMention(
+                    name=item.name,
+                    domain=item.domain,
+                    position=item.position,
+                    stance=item.stance,
+                    sentiment=item.sentiment,
+                    excerpt=item.excerpt,
+                )
+                for item in row.mentions
+            ]
+            if row.analysis_method == "llm"
+            else None
+        ),
+        analysis_version=row.analysis_version,
     )
+
+
+def _mention_rows(analysis: list[AnalyzedMention]) -> list[MentionRow]:
+    return [
+        MentionRow(
+            name=item.name,
+            domain=item.domain,
+            position=item.position,
+            stance=item.stance,
+            sentiment=item.sentiment,
+            excerpt=item.excerpt,
+        )
+        for item in analysis
+    ]
 
 
 def _draft_to_json(draft: AuditDraft) -> dict:
@@ -327,7 +361,7 @@ class Store:
             select(TrackingRunRow)
             .where(TrackingRunRow.workspace_id == row.id)
             .order_by(TrackingRunRow.created_at)
-            .options(selectinload(TrackingRunRow.citations))
+            .options(selectinload(TrackingRunRow.citations), selectinload(TrackingRunRow.mentions))
         ).all()
         audits = session.scalars(
             select(AuditRow).where(AuditRow.workspace_id == row.id).order_by(AuditRow.created_at)
@@ -500,9 +534,23 @@ class Store:
                         CitationRow(url=item.url, domain=item.domain, title=item.title, position=item.position)
                         for item in run.citations
                     ],
+                    analysis_method="llm" if run.analysis is not None else "",
+                    analysis_version=run.analysis_version if run.analysis is not None else "",
+                    mentions=_mention_rows(run.analysis) if run.analysis is not None else [],
                 )
                 for run in runs
             )
+
+    def save_analysis(self, run_id: str, analysis: list[AnalyzedMention], version: str) -> bool:
+        """Remplace l'analyse LLM d'une réponse déjà enregistrée (nouvelle version du prompt)."""
+        with self._session() as session, session.begin():
+            row = session.get(TrackingRunRow, run_id, options=[selectinload(TrackingRunRow.mentions)])
+            if row is None:
+                return False
+            row.mentions = _mention_rows(analysis)
+            row.analysis_method = "llm"
+            row.analysis_version = version
+            return True
 
     def add_audit(self, user_id: str, audit: StoredAudit) -> None:
         with self._session() as session, session.begin():

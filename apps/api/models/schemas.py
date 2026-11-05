@@ -13,6 +13,8 @@ Priority = Literal["P1", "P2", "P3"]
 Category = Literal["technical", "semantic", "authority"]
 RunStatus = Literal["completed", "failed"]
 SourceMode = Literal["live", "mock"]
+Stance = Literal["recommended", "compared", "mentioned", "discouraged"]
+AnalysisMethod = Literal["llm", "keywords"]
 
 
 class APIModel(BaseModel):
@@ -212,6 +214,8 @@ class MentionOut(APIModel):
     position: int
     sentiment: float
     excerpt: str
+    # Analyse LLM seulement : recommended | compared | mentioned | discouraged.
+    stance: Stance | None = None
 
 
 class TrackingRunOut(APIModel):
@@ -228,6 +232,7 @@ class TrackingRunOut(APIModel):
     error: str | None = None
     response_text: str
     citations: list[CitationOut]
+    analysis: AnalysisMethod = "keywords"
     mentions: list[MentionOut]
     created_at: datetime
 

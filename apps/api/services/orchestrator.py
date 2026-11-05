@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from services.auditor import crawl_site
 from services.billing import assert_quota
+from services.llm_analysis import analysis_version, analyze_runs
 from services.tracker import PROVIDERS, entities_from_workspace, execute_batch
 from store import StoredAudit, StoredRun, store
 
@@ -56,6 +57,12 @@ async def run_tracking(
                 created_at=created_at,
             )
         )
+    analyses = await analyze_runs(stored, entities)
+    version = analysis_version()
+    for run in stored:
+        if run.id in analyses:
+            run.analysis = analyses[run.id]
+            run.analysis_version = version
     store.add_runs(user_id, stored)
     store.consume_questions(user_id, len(queries))
     return len(stored)

@@ -26,7 +26,10 @@ from services.analyzer import (
     Entity,
     brand_is_cited,
     citation_rate,
+    Mention,
     extract_mentions,
+    matching_entity,
+    mentions_from_analysis,
     named_organisations,
     normalize_domain,
     share_of_voice,
@@ -36,8 +39,16 @@ from store import StoredAudit, StoredRun, Workspace
 
 METHODOLOGY = (
     "Taux de citation : part des réponses où la marque est nommée ou dont le domaine apparaît dans les sources. "
-    "Part de voix : mentions de la marque rapportées aux mentions de toutes les marques suivies, une fois par réponse."
+    "Part de voix : mentions de la marque rapportées aux mentions de toutes les marques suivies, une fois par réponse. "
+    "Les réponses réelles sont lues par Claude (marques nommées, rang, ton) ; à défaut, par mots-clés."
 )
+
+
+def run_mentions(run: StoredRun, entities: list[Entity]) -> list[Mention]:
+    """Mentions des marques suivies : analyse LLM enregistrée si elle existe, sinon mots-clés."""
+    if run.analysis is not None:
+        return mentions_from_analysis(run.response_text, run.analysis, entities)
+    return extract_mentions(run.response_text, entities)
 
 
 def entities_of(workspace: Workspace) -> list[Entity]:
@@ -61,7 +72,7 @@ def _is_tracked(domain: str, tracked: set[str]) -> bool:
 
 
 def project_run(run: StoredRun, entities: list[Entity]) -> TrackingRunOut:
-    mentions = extract_mentions(run.response_text, entities) if run.status == "completed" else []
+    mentions = run_mentions(run, entities) if run.status == "completed" else []
     brand = entities[0]
     cited = brand_is_cited(mentions, run.citations, brand) if run.status == "completed" else False
     brand_mention = next((item for item in mentions if item.entity_type == "brand"), None)
@@ -82,6 +93,7 @@ def project_run(run: StoredRun, entities: list[Entity]) -> TrackingRunOut:
             CitationOut(url=item.url, domain=item.domain, title=item.title, position=item.position)
             for item in run.citations
         ],
+        analysis="llm" if run.analysis is not None else "keywords",
         mentions=[
             MentionOut(
                 entity_name=item.entity_name,
@@ -89,6 +101,7 @@ def project_run(run: StoredRun, entities: list[Entity]) -> TrackingRunOut:
                 position=item.position,
                 sentiment=item.sentiment,
                 excerpt=item.excerpt,
+                stance=item.stance,  # type: ignore[arg-type]
             )
             for item in mentions
         ],
@@ -121,7 +134,7 @@ def domain_gaps(workspace: Workspace) -> list[DomainGap]:
     citations: dict[str, int] = defaultdict(int)
     missing: dict[str, int] = defaultdict(int)
     for run in _completed(workspace):
-        mentions = extract_mentions(run.response_text, entities)
+        mentions = run_mentions(run, entities)
         cited = brand_is_cited(mentions, run.citations, brand)
         seen: set[str] = set()
         for citation in run.citations:
@@ -141,7 +154,7 @@ def _sov_for(runs: list[StoredRun], entities: list[Entity]) -> tuple[dict[str, f
     counts = {entity.name: 0 for entity in entities}
     for run in runs:
         seen: set[str] = set()
-        for mention in extract_mentions(run.response_text, entities):
+        for mention in run_mentions(run, entities):
             if mention.entity_name in seen:
                 continue
             seen.add(mention.entity_name)
@@ -165,7 +178,7 @@ def build_overview(workspace: Workspace) -> OverviewOut:
         runs = by_week.get(week, [])
         flags = []
         for run in runs:
-            mentions = extract_mentions(run.response_text, entities)
+            mentions = run_mentions(run, entities)
             flags.append(brand_is_cited(mentions, run.citations, brand))
         rate = citation_rate(flags) if flags else 0.0
         shares, _counts = _sov_for(runs, entities) if runs else ({brand.name: 0.0}, {})
@@ -183,7 +196,7 @@ def build_overview(workspace: Workspace) -> OverviewOut:
     if by_week:
         latest_week = max(by_week)
         for run in by_week[latest_week]:
-            mentions = extract_mentions(run.response_text, entities)
+            mentions = run_mentions(run, entities)
             latest_flags.append(brand_is_cited(mentions, run.citations, brand))
     current_rate = citation_rate(latest_flags)
     previous_rate = trend[-2].citation_rate if len(trend) >= 2 else None
@@ -258,8 +271,20 @@ def build_tracking(workspace: Workspace) -> TrackingOut:
     )
 
 
+def _other_brands(run: StoredRun, entities: list[Entity]) -> list[tuple[str, str]]:
+    """Marques nommées hors marques suivies, avec leur domaine (nécessaire pour les ajouter au suivi)."""
+    if run.analysis is None:
+        return named_organisations(run.response_text)
+    return [
+        (item.name, item.domain)
+        for item in run.analysis
+        if item.domain and matching_entity(item.name, item.domain, entities) is None
+    ]
+
+
 def discovered_competitors(workspace: Workspace) -> list[DiscoveredCompetitor]:
     """Marques citées par les moteurs et absentes de la liste déclarée."""
+    entities = entities_of(workspace)
     known_names = {workspace.brand_name.lower()}
     known_names.update(item.name.lower() for item in workspace.competitors)
     known_domains = {normalize_domain(workspace.domain)}
@@ -269,7 +294,7 @@ def discovered_competitors(workspace: Workspace) -> list[DiscoveredCompetitor]:
     providers: dict[str, set[str]] = defaultdict(set)
     for run in _completed(workspace):
         seen: set[str] = set()
-        for name, domain in named_organisations(run.response_text):
+        for name, domain in _other_brands(run, entities):
             if name.lower() in known_names or domain in known_domains:
                 continue
             if domain in seen:

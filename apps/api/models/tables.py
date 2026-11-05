@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, true
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # Python 3.9 ne sait pas évaluer `datetime | None`. SQLAlchemy le fait au chargement des tables.
@@ -134,9 +134,15 @@ class TrackingRunRow(Base):
     response_text: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # "llm" quand Claude a analysé la réponse ; vide sinon, l'analyse par mots-clés prend le relais.
+    analysis_method: Mapped[str] = mapped_column(String(16), default="", server_default="")
+    analysis_version: Mapped[str] = mapped_column(String(32), default="", server_default="")
 
     citations: Mapped[list[CitationRow]] = relationship(
         cascade="all, delete-orphan", order_by="CitationRow.position"
+    )
+    mentions: Mapped[list[MentionRow]] = relationship(
+        cascade="all, delete-orphan", order_by="MentionRow.position"
     )
 
 
@@ -151,6 +157,21 @@ class CitationRow(Base):
     domain: Mapped[str] = mapped_column(String(253), index=True)
     title: Mapped[str | None] = mapped_column(Text, default=None)
     position: Mapped[int] = mapped_column(Integer)
+
+
+class MentionRow(Base):
+    """Marque nommée dans une réponse, relevée par l'analyse LLM. Toutes les marques, suivies ou non."""
+
+    __tablename__ = "mentions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("tracking_runs.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    domain: Mapped[str] = mapped_column(String(253), default="")
+    position: Mapped[int] = mapped_column(Integer)
+    stance: Mapped[str] = mapped_column(String(16))
+    sentiment: Mapped[float] = mapped_column(Float)
+    excerpt: Mapped[str] = mapped_column(Text)
 
 
 class AuditRow(Base):
