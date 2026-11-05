@@ -10,7 +10,7 @@ from store import Workspace, store
 class Plan:
     id: str
     name: str
-    price_eur: int
+    price_eur: float
     questions_per_month: int
     detail: str
 
@@ -19,21 +19,21 @@ PLANS = (
     Plan(
         "essentiel",
         "Essentiel",
-        190,
+        79.9,
         5,
         "Cinq questions par mois, chacune posée sur OpenAI, Perplexity et Gemini.",
     ),
     Plan(
         "croissance",
         "Croissance",
-        490,
+        189.9,
         20,
         "Vingt questions par mois pour suivre un marché et ses concurrents.",
     ),
     Plan(
         "reference",
         "Référence",
-        990,
+        389.9,
         60,
         "Soixante questions par mois pour couvrir plusieurs produits et plusieurs zones.",
     ),

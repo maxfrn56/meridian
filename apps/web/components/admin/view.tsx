@@ -6,13 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { euros } from "@/lib/format";
 import type { AdminOverview } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-
-function euros(value: number) {
-  return `${value.toLocaleString("fr-FR")} €`;
-}
 
 function openedOn(iso: string) {
   return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
@@ -65,7 +62,7 @@ export function AdminView() {
             <CardContent>
               <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{euros(plan.monthlyEur)}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {plan.priceEur} € / mois · {plan.subscribers} × {plan.priceEur} €
+                {euros(plan.priceEur)} / mois · {plan.subscribers} × {euros(plan.priceEur)}
               </p>
             </CardContent>
           </Card>

@@ -319,13 +319,13 @@ def test_admin_overview_counts_client_subscriptions(client: TestClient):
     assert body["accounts"] == 1
     assert body["verifiedAccounts"] == 1
     assert body["subscriptions"] == 1
-    assert body["monthlyRevenueEur"] == 490
+    assert body["monthlyRevenueEur"] == 189.9
     assert body["clients"][0]["email"] == DEMO_EMAIL
     assert body["clients"][0]["planName"] == "Croissance"
-    assert body["clients"][0]["priceEur"] == 490
+    assert body["clients"][0]["priceEur"] == 189.9
     croissance = next(item for item in body["plans"] if item["id"] == "croissance")
     assert croissance["subscribers"] == 1
-    assert croissance["monthlyEur"] == 490
+    assert croissance["monthlyEur"] == 189.9
     assert all(item["email"] != "maxime@geo.dev" for item in body["clients"])
 
 

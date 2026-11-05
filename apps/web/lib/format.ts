@@ -10,6 +10,10 @@ export function providerLabel(provider: Provider) {
   return PROVIDERS.find((item) => item.id === provider)?.label ?? provider;
 }
 
+export function euros(value: number) {
+  return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} €`;
+}
+
 export function percent(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return "—";
   return `${Math.round(value * 100)} %`;

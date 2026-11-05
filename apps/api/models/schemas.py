@@ -123,7 +123,7 @@ class AdminClientOut(APIModel):
     domain: str
     plan_id: str | None
     plan_name: str | None
-    price_eur: int
+    price_eur: float
     questions_used: int
     questions_per_month: int
 
@@ -131,16 +131,16 @@ class AdminClientOut(APIModel):
 class AdminPlanStatOut(APIModel):
     id: str
     name: str
-    price_eur: int
+    price_eur: float
     subscribers: int
-    monthly_eur: int
+    monthly_eur: float
 
 
 class AdminOverviewOut(APIModel):
     accounts: int
     verified_accounts: int
     subscriptions: int
-    monthly_revenue_eur: int
+    monthly_revenue_eur: float
     questions_used: int
     plans: list[AdminPlanStatOut]
     clients: list[AdminClientOut]
@@ -425,7 +425,7 @@ class AuditRunIn(APIModel):
 class PlanOut(APIModel):
     id: str
     name: str
-    price_eur: int
+    price_eur: float
     questions_per_month: int
     detail: str
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageFallback } from "@/components/fallback";
 import { api } from "@/lib/api";
+import { euros } from "@/lib/format";
 import type { Subscription } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,7 +57,7 @@ export function BillingView() {
                   {data.questionsUsed} sur {data.plan.questionsPerMonth} questions envoyées. Il en reste {data.questionsRemaining}.
                 </p>
               </div>
-              <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{data.plan.priceEur} €<span className="text-sm text-muted-foreground"> / mois</span></p>
+              <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{euros(data.plan.priceEur)}<span className="text-sm text-muted-foreground"> / mois</span></p>
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-foreground" style={{ width: `${used}%` }} />
@@ -76,7 +77,7 @@ export function BillingView() {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="tabular-nums text-3xl font-semibold tracking-[-0.03em]">{plan.priceEur} €<span className="text-sm text-muted-foreground"> / mois</span></p>
+                <p className="tabular-nums text-3xl font-semibold tracking-[-0.03em]">{euros(plan.priceEur)}<span className="text-sm text-muted-foreground"> / mois</span></p>
                 <p className="mt-3 text-sm font-medium">{plan.questionsPerMonth} questions par mois</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.detail}</p>
                 <Button className="mt-5 w-full" variant="outline" disabled={current || choose.isPending} onClick={() => choose.mutate(plan.id)}>

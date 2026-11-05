@@ -62,11 +62,12 @@ def overview() -> AdminOverviewOut:
             verified += 1
         plan = plan_by_id(plan_id)
         allowance = 0
-        price = 0
+        price = 0.0
         plan_name = None
         if plan is not None:
             subscriptions += 1
             monthly += plan.price_eur
+            monthly = round(monthly, 2)
             counts[plan.id] += 1
             allowance = plan.questions_per_month
             price = plan.price_eur
@@ -101,7 +102,7 @@ def overview() -> AdminOverviewOut:
                 name=plan.name,
                 price_eur=plan.price_eur,
                 subscribers=counts[plan.id],
-                monthly_eur=counts[plan.id] * plan.price_eur,
+                monthly_eur=round(counts[plan.id] * plan.price_eur, 2),
             )
             for plan in PLANS
         ],
