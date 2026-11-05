@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageFallback } from "@/components/fallback";
 import { api } from "@/lib/api";
-import { percent, signedPoints, signedRate } from "@/lib/format";
+import { percent, signedRate } from "@/lib/format";
 import type { Overview, Subscription } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -46,7 +46,7 @@ function DashboardData() {
   }
 
   const data = overview.data;
-  const empty = data.kpis.queriesTracked === 0 && data.kpis.geoScore == null;
+  const empty = data.kpis.queriesTracked === 0;
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
@@ -79,8 +79,7 @@ function DashboardData() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
-            <Kpi label="Score GEO" value={data.kpis.geoScore == null ? "—" : String(data.kpis.geoScore)} delta={signedPoints(data.kpis.geoScoreDelta)} />
+          <div className="grid gap-4 md:grid-cols-3">
             <Kpi label="Taux de citation" value={percent(data.kpis.citationRate)} delta={signedRate(data.kpis.citationRateDelta)} />
             <Kpi label="Part de voix" value={percent(data.kpis.shareOfVoice)} delta={signedRate(data.kpis.shareOfVoiceDelta)} />
             <Kpi label="Requêtes actives" value={String(data.kpis.queriesTracked)} delta={`${data.kpis.runsCompleted} réponses`} />
@@ -88,7 +87,7 @@ function DashboardData() {
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
             <Card>
               <CardHeader>
-                <CardTitle>Citation, part de voix et score GEO</CardTitle>
+                <CardTitle>Citation et part de voix</CardTitle>
                 <TrendLegend />
               </CardHeader>
               <CardContent>
@@ -138,10 +137,9 @@ function AccountAccess({ billing }: { billing?: Subscription }) {
           </Button>
         </CardContent>
       </Card>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <AccessLink href="/comparison" title="Position" text="Rang, visibilité et ton face aux concurrents." />
         <AccessLink href="/comparison#sources" title="Sources" text="Les domaines qui nourrissent les réponses." />
-        <AccessLink href="/audit" title="Axes d'amélioration" text="Ce qu'il faut changer sur le site pour être cité." />
       </div>
     </div>
   );

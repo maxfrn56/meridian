@@ -35,7 +35,7 @@ export function AuthFrame({
             Voyez ce que les IA disent de vous. <span className="text-muted-foreground">Puis changez la réponse.</span>
           </h1>
           <p className="mt-4 max-w-md text-base leading-7 text-muted-foreground">
-            Taux de citation, part de voix face aux concurrents, audit du site et actions classées par priorité.
+            Taux de citation et part de voix face aux concurrents, à partir des questions posées aux IA.
           </p>
         </div>
         <p className="text-sm text-muted-foreground">Analyse quotidienne sur ChatGPT, Perplexity et Gemini</p>

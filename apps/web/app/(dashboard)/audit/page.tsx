@@ -1,13 +1,7 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
 export const instant = false;
-import { AuditView } from "@/components/audit/view";
-import { PageFallback } from "@/components/fallback";
 
 export default function AuditPage() {
-  return (
-    <Suspense fallback={<PageFallback />}>
-      <AuditView />
-    </Suspense>
-  );
+  redirect("/tracking");
 }

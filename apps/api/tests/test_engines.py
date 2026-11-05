@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import httpx
 
-import routers.settings
 import services.llm as llm
 from config import settings
 from services.llm import describe_error, redact_secrets
@@ -58,17 +57,10 @@ def test_engine_errors_are_readable_and_hide_keys(monkeypatch):
     assert "sk-proj-abcdefghijkl" not in redact_secrets("Bearer sk-proj-abcdefghijkl refusée")
 
 
-def test_saving_a_new_domain_launches_the_audit(client, monkeypatch):  # noqa: F811
+def test_saving_a_new_domain_does_not_launch_a_site_audit(client):  # noqa: F811
     headers = {"Authorization": f"Bearer {_token(client)}"}
-    launched = []
-
-    async def fake_audit(user_id, url=None):
-        launched.append(user_id)
-
-    monkeypatch.setattr(routers.settings, "run_audit", fake_audit)
+    before = client.get("/api/v1/audit", headers=headers).json()["audit"]["id"]
     current = client.get("/api/v1/settings", headers=headers).json()
-    # Même domaine, et l'espace de démo a déjà des audits : rien ne part.
-    assert client.put("/api/v1/settings", headers=headers, json=current).status_code == 200
-    assert launched == []
-    assert client.put("/api/v1/settings", headers=headers, json={**current, "domain": "nouveau-site.io"}).status_code == 200
-    assert len(launched) == 1
+    saved = client.put("/api/v1/settings", headers=headers, json={**current, "domain": "nouveau-site.io"})
+    assert saved.status_code == 200
+    assert client.get("/api/v1/audit", headers=headers).json()["audit"]["id"] == before

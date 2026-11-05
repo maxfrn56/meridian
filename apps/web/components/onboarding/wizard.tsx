@@ -8,6 +8,7 @@ import type { Settings, SettingsInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 const ACTIVITIES = ["Commerce", "Service local", "Logiciel", "Industrie", "Conseil"] as const;
@@ -27,6 +28,7 @@ function sectorLine(offer: string, market: string, city: string, multi: boolean)
 }
 
 export function OnboardingWizard({ onDone }: { onDone: () => void }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("/settings") });
   const [step, setStep] = useState(0);
@@ -139,10 +141,23 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     setError(null);
     try {
       await saveSettings(payload);
-      await api("/audit/run", { method: "POST", body: JSON.stringify({}) });
+      try {
+        await api("/tracking/run", { method: "POST", body: JSON.stringify({}) });
+      } catch (caught) {
+        const message = caught instanceof ApiError ? caught.message : "Le suivi n'a pas pu démarrer.";
+        await queryClient.invalidateQueries({ queryKey: ["settings"] });
+        await queryClient.invalidateQueries({ queryKey: ["me"] });
+        if (message.toLowerCase().includes("forfait")) {
+          router.push("/billing");
+          return;
+        }
+        setError(message);
+        setPending(false);
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
       await queryClient.invalidateQueries({ queryKey: ["me"] });
-      await queryClient.invalidateQueries({ queryKey: ["audit"] });
+      await queryClient.invalidateQueries({ queryKey: ["tracking"] });
       await queryClient.invalidateQueries({ queryKey: ["overview"] });
       onDone();
     } catch (caught) {
@@ -184,9 +199,9 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         <div key={step} className="mt-8 min-h-0 flex-1 overflow-y-auto motion-safe:animate-none">
           {step === 0 ? (
             <>
-              <h1 className="text-3xl font-semibold tracking-[-0.03em]">Quel site faut-il auditer ?</h1>
+              <h1 className="text-3xl font-semibold tracking-[-0.03em]">Quel site faut-il suivre ?</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                On commence par là : l'audit lit vos pages pour voir ce que les IA peuvent citer.
+                On commence par là : les questions seront rédigées à partir de ce site, puis envoyées aux IA.
               </p>
               <Input
                 className="mt-8 h-12 text-base"
@@ -372,7 +387,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
             <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Voici ce qu'on va mesurer.</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                L'audit lit le site. Les questions servent ensuite à voir si les IA vous citent.
+                Ces questions sont envoyées à ChatGPT, Perplexity et Gemini. Le suivi mesure s'ils vous citent.
               </p>
               <dl className="mt-6 divide-y divide-border rounded-xl border border-border">
                 <Summary label="Site" value={domain.trim()} />
@@ -398,7 +413,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
               </Button>
             ) : null}
             <Button type="button" onClick={forward} disabled={pending || generating}>
-              {pending ? "Lecture du site…" : step === STEPS - 1 ? "Lancer l'audit" : "Continuer"}
+              {pending ? "Envoi des questions…" : step === STEPS - 1 ? "Lancer le suivi" : "Continuer"}
               {pending || step === STEPS - 1 ? null : <ArrowRight />}
             </Button>
           </div>

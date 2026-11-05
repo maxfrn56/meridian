@@ -61,11 +61,10 @@ function useReducedMotion() {
   );
 }
 
-/* Trois mesures de la marque : le taux de citation porte l'orange, les deux autres restent neutres. */
+/* Deux mesures du suivi : le taux de citation porte l'orange, la part de voix reste en encre. */
 const TREND_SERIES = [
   { key: "citation", label: "Taux de citation", stroke: BRAND, dash: undefined },
   { key: "voice", label: "Part de voix", stroke: INK, dash: undefined },
-  { key: "geoScore", label: "Score GEO", stroke: RIVALS[0], dash: "4 3" },
 ] as const;
 
 export function TrendLegend() {

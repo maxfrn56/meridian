@@ -5,7 +5,7 @@ import { api, TOKEN_KEY } from "@/lib/api";
 import type { Settings as WorkspaceSettings, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { CreditCard, GitCompare, LayoutDashboard, LogOut, Radar, ScanSearch, Settings, Users } from "lucide-react";
+import { CreditCard, GitCompare, LayoutDashboard, LogOut, Radar, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -16,7 +16,6 @@ const CLIENT_NAV = [
   { href: "/dashboard", label: "Vue d'ensemble", icon: LayoutDashboard },
   { href: "/tracking", label: "Suivi", icon: Radar },
   { href: "/comparison", label: "Comparaison", icon: GitCompare },
-  { href: "/audit", label: "Audit", icon: ScanSearch },
   { href: "/billing", label: "Forfait", icon: CreditCard },
   { href: "/settings", label: "Réglages", icon: Settings },
 ] as const;
@@ -149,7 +148,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <NavLinks items={navigation} />
         </nav>
         <main>{children}</main>
-        {needsProfile ? <OnboardingWizard onDone={() => router.push("/audit")} /> : null}
+        {needsProfile ? <OnboardingWizard onDone={() => router.push("/tracking")} /> : null}
       </div>
     </div>
   );
