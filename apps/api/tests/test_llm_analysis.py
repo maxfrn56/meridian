@@ -157,7 +157,7 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
     }
 
     stored = store.workspace_for(store.user_by_email(DEMO_EMAIL).id).runs[-1]
-    assert stored.analysis_version.endswith("/v2")
+    assert stored.analysis_version.endswith("/v3")
     assert [item.name for item in stored.analysis] == ["Lumenboard", "Northwind", "Datadash"]
 
     workspace = store.workspace_for(store.user_by_email(DEMO_EMAIL).id)
@@ -168,7 +168,11 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
 def test_assistants_and_general_sites_are_not_rivals_or_sources():
     assert is_generic_platform("ChatGPT")
     assert is_generic_platform("OpenAI", "openai.com")
+    assert is_generic_platform("Malt", "malt.fr")
+    assert is_generic_platform("Codeur.com", "www.codeur.com")
+    assert is_generic_platform("Upwork")
     assert not is_generic_platform("Lumenboard", "lumenboard.com")
+    assert not is_generic_platform("Atelier Biarritz", "atelier-biarritz.fr")
     now = datetime.now(timezone.utc)
     run = StoredRun(
         id="r",
@@ -188,8 +192,9 @@ def test_assistants_and_general_sites_are_not_rivals_or_sources():
         error=None,
         created_at=now,
         analysis=[
-            AnalyzedMention("ChatGPT", "openai.com", 1, "mentioned", 0, "ChatGPT"),
-            AnalyzedMention("Lumenboard", "lumenboard.com", 2, "recommended", 0.4, "Lumenboard"),
+            AnalyzedMention("Malt", "malt.fr", 1, "recommended", 0.2, "Malt"),
+            AnalyzedMention("ChatGPT", "openai.com", 2, "mentioned", 0, "ChatGPT"),
+            AnalyzedMention("Lumenboard", "lumenboard.com", 3, "recommended", 0.4, "Lumenboard"),
         ],
     )
     workspace = Workspace(

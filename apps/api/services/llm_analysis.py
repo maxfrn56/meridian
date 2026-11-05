@@ -30,13 +30,13 @@ from services.analyzer import (
 logger = logging.getLogger(__name__)
 
 # À incrémenter à chaque changement du prompt : les analyses gardent la version qui les a produites.
-PROMPT_VERSION = 2
+PROMPT_VERSION = 3
 MAX_EXCERPT = 300
 CONCURRENCY = 4
 
 SYSTEM_PROMPT = """Tu analyses la réponse d'un assistant IA (ChatGPT, Perplexity, Gemini…) à la question d'un acheteur, pour mesurer la visibilité des marques.
 
-Relève chaque marque, entreprise, produit ou service nommé dans la réponse, qu'il fasse partie des marques suivies ou non. N'en relève pas : les médias, annuaires ou sites cités seulement comme source d'information, les noms génériques (« un CRM »), les personnes, les assistants qui répondent (ChatGPT, OpenAI, Perplexity, Gemini, Claude, Copilot) ni les plateformes générales (Google, Wikipédia, YouTube, LinkedIn, réseaux sociaux).
+Relève chaque marque, entreprise, produit ou service nommé dans la réponse, qu'il fasse partie des marques suivies ou non. Un concurrent est une agence, un indépendant ou une entreprise qui fait le même métier, pas l'endroit où on les trouve. N'en relève pas : les médias, les noms génériques (« un CRM », « un développeur »), les personnes, les assistants qui répondent (ChatGPT, OpenAI, Perplexity, Gemini, Claude, Copilot), les plateformes générales (Google, Wikipédia, YouTube, LinkedIn, réseaux sociaux), ni les places de marché et annuaires de prestataires (Malt, Codeur.com, Upwork, Fiverr, ComeUp, 5euros, Toptal, Sortlist, Clutch, Goodfirms, DesignRush, et les sites du même genre).
 
 Pour chaque marque :
 - name : son nom tel qu'écrit dans la réponse. Si c'est l'une des marques suivies, même écrite autrement (accents, faute, nom de domaine seul, nom d'un de ses produits), reprends exactement le nom suivi.

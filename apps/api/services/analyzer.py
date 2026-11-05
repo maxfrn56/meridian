@@ -202,6 +202,28 @@ _GENERIC_NAMES = {
     "twitter",
     "reddit",
     "tiktok",
+    # Places de marché et annuaires de prestataires : ils recensent des concurrents, ils n'en sont pas.
+    "malt",
+    "codeur",
+    "codeur.com",
+    "upwork",
+    "fiverr",
+    "comeup",
+    "come up",
+    "5euros",
+    "5 euros",
+    "5euros.com",
+    "peopleperhour",
+    "people per hour",
+    "toptal",
+    "sortlist",
+    "goodfirms",
+    "designrush",
+    "design rush",
+    "lehibou",
+    "le hibou",
+    "kicklox",
+    "creme de la creme",
 }
 _GENERIC_DOMAINS = {
     "openai.com",
@@ -224,6 +246,25 @@ _GENERIC_DOMAINS = {
     "tiktok.com",
     "google.com",
     "bing.com",
+    "malt.fr",
+    "malt.com",
+    "codeur.com",
+    "upwork.com",
+    "fiverr.com",
+    "freelancer.com",
+    "comeup.com",
+    "5euros.com",
+    "peopleperhour.com",
+    "toptal.com",
+    "sortlist.com",
+    "sortlist.fr",
+    "clutch.co",
+    "goodfirms.co",
+    "designrush.com",
+    "comet.co",
+    "lehibou.com",
+    "kicklox.com",
+    "cremedelacreme.io",
 }
 
 
@@ -267,12 +308,17 @@ def matching_entity(name: str, domain: str, entities: list[Entity]) -> Entity | 
 def mentions_from_analysis(text: str, analyzed: list[AnalyzedMention], entities: list[Entity]) -> list[Mention]:
     """Mentions des marques suivies, à partir de l'analyse LLM enregistrée.
 
-    La position reste celle de la réponse, toutes marques confondues : « citée en 3e ».
+    Le rang ignore les annuaires et les assistants : Malt en tête ne décale pas une agence.
     """
-    mentions: list[Mention] = []
-    seen: set[str] = set()
+    visible: list[tuple[Entity | None, AnalyzedMention]] = []
     for item in sorted(analyzed, key=lambda value: value.position):
         entity = matching_entity(item.name, item.domain, entities)
+        if entity is None and is_generic_platform(item.name, item.domain):
+            continue
+        visible.append((entity, item))
+    mentions: list[Mention] = []
+    seen: set[str] = set()
+    for rank, (entity, item) in enumerate(visible, start=1):
         if entity is None or entity.name in seen:
             continue
         seen.add(entity.name)
@@ -281,7 +327,7 @@ def mentions_from_analysis(text: str, analyzed: list[AnalyzedMention], entities:
             Mention(
                 entity_name=entity.name,
                 entity_type=entity.kind,
-                position=item.position,
+                position=rank,
                 sentiment=item.sentiment,
                 excerpt=item.excerpt,
                 char_index=index if index is not None else 0,
