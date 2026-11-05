@@ -12,8 +12,8 @@ from models.schemas import (
     CompareSource,
     ComparisonOut,
 )
-from services.analyzer import Entity, extract_mentions, normalize_domain
-from services.metrics import entities_of, week_start
+from services.analyzer import Entity, normalize_domain
+from services.metrics import entities_of, run_mentions, week_start
 from store import StoredRun, Workspace
 
 METHOD = (
@@ -53,7 +53,7 @@ def build_comparison(workspace: Workspace) -> ComparisonOut:
     runs = [run for run in completed if latest and week_start(run.created_at) == latest]
     prepared: list[tuple[StoredRun, dict[str, object]]] = []
     for run in runs:
-        mentions = extract_mentions(run.response_text, entities)
+        mentions = run_mentions(run, entities)
         prepared.append((run, {item.entity_name: item for item in mentions}))
 
     providers = list(dict.fromkeys(run.provider for run, _mentions in prepared))

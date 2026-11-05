@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -72,6 +73,26 @@ class Mention:
     sentiment: float
     excerpt: str
     char_index: int
+    stance: str | None = None  # renseigné seulement par l'analyse LLM
+
+
+STANCES = ("recommended", "compared", "mentioned", "discouraged")
+
+
+@dataclass(frozen=True)
+class AnalyzedMention:
+    """Marque relevée par l'analyse LLM, telle qu'enregistrée en base.
+
+    Toutes les marques nommées sont gardées, suivies ou non : la liste des concurrents
+    peut changer après coup, le rapprochement avec les marques suivies se fait à la lecture.
+    """
+
+    name: str
+    domain: str
+    position: int
+    stance: str
+    sentiment: float
+    excerpt: str
 
 
 def host_of(url: str) -> str:
@@ -141,6 +162,64 @@ def extract_mentions(text: str, entities: list[Entity]) -> list[Mention]:
                 sentiment=_sentiment(text, index, end),
                 excerpt=_excerpt(text, index),
                 char_index=index,
+            )
+        )
+    return mentions
+
+
+def fold(value: str) -> str:
+    """Casse et accents ignorés : « Méridien » et « meridien » se valent."""
+    decomposed = unicodedata.normalize("NFKD", value)
+    return " ".join("".join(char for char in decomposed if not unicodedata.combining(char)).casefold().split())
+
+
+def locate(excerpt: str, text: str) -> int | None:
+    """Position de l'extrait dans la réponse, None s'il n'y figure pas.
+
+    Sert de garde-fou : un extrait introuvable veut dire que le modèle a reformulé ou inventé.
+    """
+    words = excerpt.strip().strip("…\"'«» ").split()
+    if not words:
+        return None
+    pattern = r"\s+".join(re.escape(word) for word in words)
+    match = re.search(pattern, text, re.IGNORECASE)
+    return match.start() if match else None
+
+
+def matching_entity(name: str, domain: str, entities: list[Entity]) -> Entity | None:
+    folded = fold(name)
+    owned = normalize_domain(domain) if domain else ""
+    for entity in entities:
+        if folded and folded == fold(entity.name):
+            return entity
+        tracked = normalize_domain(entity.domain) if entity.domain else ""
+        if owned and tracked and (owned == tracked or owned.endswith(f".{tracked}")):
+            return entity
+    return None
+
+
+def mentions_from_analysis(text: str, analyzed: list[AnalyzedMention], entities: list[Entity]) -> list[Mention]:
+    """Mentions des marques suivies, à partir de l'analyse LLM enregistrée.
+
+    La position reste celle de la réponse, toutes marques confondues : « citée en 3e ».
+    """
+    mentions: list[Mention] = []
+    seen: set[str] = set()
+    for item in sorted(analyzed, key=lambda value: value.position):
+        entity = matching_entity(item.name, item.domain, entities)
+        if entity is None or entity.name in seen:
+            continue
+        seen.add(entity.name)
+        index = locate(item.excerpt, text)
+        mentions.append(
+            Mention(
+                entity_name=entity.name,
+                entity_type=entity.kind,
+                position=item.position,
+                sentiment=item.sentiment,
+                excerpt=item.excerpt,
+                char_index=index if index is not None else 0,
+                stance=item.stance,
             )
         )
     return mentions

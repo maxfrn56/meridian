@@ -65,6 +65,8 @@ export type Mention = {
   position: number;
   sentiment: number;
   excerpt: string;
+  /** Renseigné seulement quand Claude a analysé la réponse. */
+  stance: "recommended" | "compared" | "mentioned" | "discouraged" | null;
 };
 
 export type TrackingRun = {
@@ -81,6 +83,7 @@ export type TrackingRun = {
   error: string | null;
   responseText: string;
   citations: Citation[];
+  analysis: "llm" | "keywords";
   mentions: Mention[];
   createdAt: string;
 };

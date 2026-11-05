@@ -38,6 +38,9 @@ class Settings:
     allowed_origins: tuple[str, ...]
     database_url: str
     seed_demo: bool
+    anthropic_api_key: str
+    analysis_model: str
+    analysis_llm: str
 
     def provider_mode(self, provider: str) -> str:
         """live si la clé existe et que la simulation n'est pas forcée."""
@@ -51,6 +54,10 @@ class Settings:
         if self.mock_llm == "false":
             return "live"
         return "live" if key else "mock"
+
+    def llm_analysis_enabled(self) -> bool:
+        """Analyse des réponses par Claude : active dès que la clé existe, sauf ANALYSIS_LLM=false."""
+        return bool(self.anthropic_api_key) and self.analysis_llm != "false"
 
 
 _DEFAULT_DB = Path(__file__).resolve().parent / "data" / "meridian.db"
@@ -87,6 +94,9 @@ def load_settings() -> Settings:
         allowed_origins=tuple(part.strip() for part in origins.split(",") if part.strip()),
         database_url=database_url_from_env(),
         seed_demo=_flag("SEED_DEMO", "true") in {"1", "true", "yes"},
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
+        analysis_model=os.getenv("ANALYSIS_MODEL", "claude-haiku-5-5").strip() or "claude-haiku-5-5",
+        analysis_llm=_flag("ANALYSIS_LLM", "auto"),
     )
 
 

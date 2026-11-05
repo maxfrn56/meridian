@@ -22,6 +22,8 @@ Sans clé d'API, les réponses des moteurs sont simulées et l'interface l'indiq
 
 `MOCK_LLM=auto` interroge un moteur seulement si sa clé est présente.
 
+`ANTHROPIC_API_KEY` active l'analyse des réponses réelles par Claude Haiku (`ANALYSIS_MODEL`, `claude-haiku-5-5` par défaut). Sans elle, ou si l'appel échoue, l'analyse se fait par mots-clés.
+
 ## Architecture
 
 ```
@@ -35,6 +37,8 @@ apps/api     FastAPI
 Le frontend parle à `/api/geo/*`, qui proxifie `http://127.0.0.1:8000/api/v1`.
 
 Les prompts de suivi sont envoyés tels quels : la marque n'est pas injectée dans la question. Le taux de citation compte une réponse si la marque est nommée ou si son domaine figure dans les sources. La part de voix rapporte les mentions de la marque à l'ensemble des marques suivies.
+
+Chaque réponse réelle est lue une fois par Claude, à la collecte (`services/llm_analysis.py`) : toutes les marques nommées, leur rang dans la réponse, leur traitement (recommandée, comparée, citée en passant, déconseillée), le ton et un extrait. Le résultat est enregistré dans la table `mentions` ; les tableaux de bord le relisent sans rappeler le modèle. Un extrait introuvable mot pour mot dans la réponse fait écarter la mention. `PROMPT_VERSION` est enregistré avec chaque analyse. Les réponses simulées et celles sans analyse passent par `services/analyzer.py` (mots-clés).
 
 L'audit lit le HTML (BeautifulSoup), le JSON-LD, `robots.txt` et `/llms.txt`. Playwright n'est utilisé que si `USE_PLAYWRIGHT=true` (`pip install playwright && playwright install chromium`).
 
