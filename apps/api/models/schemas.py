@@ -447,6 +447,10 @@ class SubscribeIn(APIModel):
     plan_id: str = Field(min_length=2, max_length=40)
 
 
+class CheckoutOut(APIModel):
+    url: str
+
+
 class JobOut(APIModel):
     id: str
     kind: Literal["tracking", "audit"]

@@ -78,6 +78,8 @@ class WorkspaceRow(Base):
     domain: Mapped[str] = mapped_column(String(253), default="")
     sector: Mapped[str] = mapped_column(String(120), default="")
     plan_id: Mapped[str | None] = mapped_column(String(32), default=None)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), default=None)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), default=None)
     period_month: Mapped[str] = mapped_column(String(7), default="")
     questions_used: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
