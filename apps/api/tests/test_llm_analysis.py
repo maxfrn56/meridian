@@ -115,9 +115,19 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
     headers = {"Authorization": f"Bearer {_token(client)}"}
     query_id = client.get("/api/v1/settings", headers=headers).json()["queries"][0]["id"]
 
-    async def live_batch(jobs, entities):
+    async def live_batch(jobs, entities, on_done=None, on_result=None):
         now = datetime.now(timezone.utc)
-        return [(qid, provider, ANSWER, [], "gpt-4o", "live", None, now) for qid, _prompt, provider in jobs]
+        rows = []
+        for qid, prompt, provider in jobs:
+            row = (qid, provider, ANSWER, [], "gpt-4o", "live", None, now)
+            rows.append(row)
+            if on_done is not None:
+                on_done(provider, prompt)
+            if on_result is not None:
+                outcome = on_result(row, prompt)
+                if hasattr(outcome, "__await__"):
+                    await outcome
+        return rows
 
     fake = FakeClient(parsed=PARSED)
     monkeypatch.setattr(services.orchestrator, "execute_batch", live_batch)
@@ -132,7 +142,9 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
         )
         assert response.status_code == 200
 
-    run = next(item for item in response.json()["queries"] if item["id"] == query_id)["runs"]["openai"]
+    tracking = client.get("/api/v1/tracking", headers=headers)
+    assert tracking.status_code == 200
+    run = next(item for item in tracking.json()["queries"] if item["id"] == query_id)["runs"]["openai"]
     assert run["analysis"] == "llm"
     assert run["cited"] is True
     assert run["position"] == 2

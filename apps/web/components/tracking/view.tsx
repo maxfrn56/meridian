@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RunProgressBar, runTracking, useRefreshAfterRun, useTrackingLaunch } from "@/components/run-progress";
 import { api } from "@/lib/api";
 import { PROVIDERS, dateTimeLabel, providerLabel, sentimentMeta } from "@/lib/format";
 import type { Provider, Tracking, TrackingRun } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 export function TrackingView() {
@@ -22,21 +23,14 @@ export function TrackingView() {
 }
 
 function TrackingData() {
-  const queryClient = useQueryClient();
   const [provider, setProvider] = useState<Provider | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const tracking = useQuery({ queryKey: ["tracking"], queryFn: () => api<Tracking>("/tracking") });
-  const run = useMutation({
-    mutationFn: () =>
-      api("/tracking/run", {
-        method: "POST",
-        body: JSON.stringify(provider === "all" ? {} : { providers: [provider] }),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["tracking"] });
-      await queryClient.invalidateQueries({ queryKey: ["overview"] });
-    },
-  });
+  const refresh = useRefreshAfterRun();
+  const { run, active, complete } = useTrackingLaunch(
+    () => runTracking(provider === "all" ? {} : { providers: [provider] }, () => void refresh()),
+    refresh,
+  );
 
   if (tracking.isPending) return <PageFallback />;
   if (tracking.error) {
@@ -65,11 +59,12 @@ function TrackingData() {
         title="Marque contre concurrents"
         description="Chaque requête est envoyée telle quelle. Une réponse est citée si la marque est nommée ou si son domaine apparaît dans les sources."
         action={
-          <Button onClick={() => run.mutate()} disabled={run.isPending || tracking.data.queries.length === 0}>
-            {run.isPending ? "Interrogation…" : "Relancer les requêtes"}
+          <Button onClick={() => run.mutate()} disabled={active || tracking.data.queries.length === 0}>
+            {complete ? "Suivi terminé" : active ? "Interrogation…" : "Relancer les requêtes"}
           </Button>
         }
       />
+      <RunProgressBar active={active} complete={complete} />
       <ModeBanner mode={tracking.data.llmMode} />
       {run.error ? <p className="mb-4 text-sm font-semibold text-destructive">{run.error.message}</p> : null}
       <Tabs value={provider} onValueChange={(value) => setProvider(value as Provider | "all")}>

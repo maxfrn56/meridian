@@ -47,8 +47,14 @@ async def execute_query(
 async def execute_batch(
     jobs: list[tuple[str, str, str]],
     entities: list[Entity],
+    on_done=None,
+    on_result=None,
 ) -> list[tuple[str, str, str, list[Citation], str, str, str | None, datetime]]:
-    """jobs: (query_id, prompt, provider)."""
+    """jobs: (query_id, prompt, provider).
+
+    on_done(provider, prompt) et on_result(row, prompt) sont appelés après chaque réponse,
+    une fois le créneau libéré. on_result peut être asynchrone.
+    """
     semaphore = asyncio.Semaphore(4)
     created_at = datetime.now(timezone.utc)
 
@@ -57,6 +63,13 @@ async def execute_batch(
             text, citations, model, source_mode, error = await execute_query(
                 prompt, provider, entities, nonce=f"{query_id}|{created_at.isoformat()}"
             )
-            return query_id, provider, text, citations, model, source_mode, error, created_at
+        row = (query_id, provider, text, citations, model, source_mode, error, created_at)
+        if on_done is not None:
+            on_done(provider, prompt)
+        if on_result is not None:
+            outcome = on_result(row, prompt)
+            if hasattr(outcome, "__await__"):
+                await outcome
+        return row
 
     return await asyncio.gather(*(one(query_id, prompt, provider) for query_id, prompt, provider in jobs))

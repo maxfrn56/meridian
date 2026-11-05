@@ -388,9 +388,16 @@ class Store:
 
     def _roll_period(self, row: WorkspaceRow) -> None:
         day = _current_day()
-        if row.period_month != day:
+        stored = row.period_month or ""
+        if stored == day:
+            return
+        # Ancien tampon AAAA-MM, trop court pour le jour : on l'allonge sans
+        # effacer le compteur à chaque lecture, sinon il reste affiché à zéro.
+        if len(stored) == 7 and day.startswith(stored):
             row.period_month = day
-            row.questions_used = 0
+            return
+        row.period_month = day
+        row.questions_used = 0
 
     def workspace_for(self, user_id: str) -> Workspace | None:
         with self._session() as session:
@@ -514,13 +521,7 @@ class Store:
             if row is None:
                 raise KeyError(user_id)
             self._roll_period(row)
-            session.flush()
-            # Incrément côté base : deux lancements simultanés ne s'écrasent pas.
-            session.execute(
-                update(WorkspaceRow)
-                .where(WorkspaceRow.id == row.id)
-                .values(questions_used=WorkspaceRow.questions_used + count)
-            )
+            row.questions_used += count
 
     # Résultats
 

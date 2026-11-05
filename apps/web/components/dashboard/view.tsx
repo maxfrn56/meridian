@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageFallback } from "@/components/fallback";
+import { RunProgressBar, runTracking, useRefreshAfterRun, useTrackingLaunch } from "@/components/run-progress";
 import { api } from "@/lib/api";
 import { percent, signedRate } from "@/lib/format";
 import type { Overview, Subscription } from "@/lib/types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -22,16 +23,10 @@ export function DashboardView() {
 }
 
 function DashboardData() {
-  const queryClient = useQueryClient();
   const overview = useQuery({ queryKey: ["overview"], queryFn: () => api<Overview>("/overview") });
   const billing = useQuery({ queryKey: ["billing"], queryFn: () => api<Subscription>("/billing") });
-  const run = useMutation({
-    mutationFn: () => api("/tracking/run", { method: "POST", body: JSON.stringify({}) }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["overview"] });
-      await queryClient.invalidateQueries({ queryKey: ["tracking"] });
-    },
-  });
+  const refresh = useRefreshAfterRun();
+  const { run, active, complete } = useTrackingLaunch(() => runTracking({}, () => void refresh()), refresh);
 
   if (overview.isPending) return <PageFallback />;
   if (overview.error) {
@@ -57,16 +52,17 @@ function DashboardData() {
           <Button
             onClick={() => run.mutate()}
             disabled={
-              run.isPending ||
+              active ||
               data.kpis.queriesTracked === 0 ||
               !(billing.data?.plan || billing.data?.trialActive) ||
               billing.data.questionsRemaining === 0
             }
           >
-            {run.isPending ? "Suivi en cours…" : "Lancer le suivi"}
+            {complete ? "Suivi terminé" : active ? "Suivi en cours…" : "Lancer le suivi"}
           </Button>
         }
       />
+      <RunProgressBar active={active} complete={complete} />
       <ModeBanner mode={data.llmMode} />
       <AccountAccess billing={billing.data} />
       {run.error ? <p className="mb-4 text-sm font-semibold text-destructive">{run.error.message}</p> : null}
