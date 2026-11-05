@@ -56,7 +56,12 @@ function DashboardData() {
         action={
           <Button
             onClick={() => run.mutate()}
-            disabled={run.isPending || data.kpis.queriesTracked === 0 || !billing.data?.plan || billing.data.questionsRemaining === 0}
+            disabled={
+              run.isPending ||
+              data.kpis.queriesTracked === 0 ||
+              !(billing.data?.plan || billing.data?.trialActive) ||
+              billing.data.questionsRemaining === 0
+            }
           >
             {run.isPending ? "Suivi en cours…" : "Lancer le suivi"}
           </Button>
@@ -126,14 +131,16 @@ function AccountAccess({ billing }: { billing?: Subscription }) {
       <Card>
         <CardContent className="pt-5">
           <p className="text-sm text-muted-foreground">Forfait du mois</p>
-          <p className="mt-2 text-lg font-medium">{plan ? plan.name : "Aucun forfait"}</p>
+          <p className="mt-2 text-lg font-medium">{plan ? plan.name : billing?.trialActive ? "Essai gratuit" : "Aucun forfait"}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {plan
-              ? `${billing?.questionsUsed ?? 0} question${(billing?.questionsUsed ?? 0) > 1 ? "s" : ""} envoyée${(billing?.questionsUsed ?? 0) > 1 ? "s" : ""} sur ${plan.questionsPerMonth}. Il en reste ${billing?.questionsRemaining ?? 0}.`
-              : "Choisissez un forfait pour envoyer des questions aux modèles."}
+              ? `${billing?.questionsUsed ?? 0} question${(billing?.questionsUsed ?? 0) > 1 ? "s" : ""} envoyée${(billing?.questionsUsed ?? 0) > 1 ? "s" : ""} aujourd'hui sur ${plan.questionsPerDay}. Il en reste ${billing?.questionsRemaining ?? 0}.`
+              : billing?.trialActive
+                ? `${billing.questionsUsed} question${billing.questionsUsed > 1 ? "s" : ""} envoyée${billing.questionsUsed > 1 ? "s" : ""} aujourd'hui sur 10. Il en reste ${billing.questionsRemaining}.`
+                : "L'essai de 7 jours est terminé. Choisissez un forfait pour continuer."}
           </p>
           <Button asChild className="mt-4" variant="outline">
-            <Link href="/billing">{plan ? "Changer de forfait" : "Choisir un forfait"}</Link>
+            <Link href="/billing">{plan ? "Changer de forfait" : billing?.trialActive ? "Voir les forfaits" : "Choisir un forfait"}</Link>
           </Button>
         </CardContent>
       </Card>

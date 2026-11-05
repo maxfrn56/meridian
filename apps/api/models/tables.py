@@ -80,8 +80,10 @@ class WorkspaceRow(Base):
     plan_id: Mapped[str | None] = mapped_column(String(32), default=None)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), default=None)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), default=None)
-    period_month: Mapped[str] = mapped_column(String(7), default="")
+    period_month: Mapped[str] = mapped_column(String(10), default="")
     questions_used: Mapped[int] = mapped_column(Integer, default=0)
+    providers: Mapped[str] = mapped_column(String(80), default="openai,perplexity,gemini", server_default="openai,perplexity,gemini")
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped[UserRow] = relationship(back_populates="workspace")

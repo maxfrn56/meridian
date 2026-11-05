@@ -48,6 +48,8 @@ class Settings:
             "openai": self.openai_api_key,
             "perplexity": self.perplexity_api_key,
             "gemini": self.gemini_api_key,
+            "claude": self.anthropic_api_key,
+            "aistudio": self.gemini_api_key,
         }.get(provider, "")
         if self.mock_llm == "true":
             return "mock"

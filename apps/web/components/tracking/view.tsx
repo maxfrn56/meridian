@@ -50,10 +50,11 @@ function TrackingData() {
     );
   }
 
+  const engines = PROVIDERS.filter((item) => tracking.data.providers.includes(item.id));
   const rows = tracking.data.queries.map((query) => {
     const selected =
       provider === "all"
-        ? PROVIDERS.map((item) => query.runs[item.id]).find((item) => item) ?? null
+        ? engines.map((item) => query.runs[item.id]).find((item) => item) ?? null
         : query.runs[provider];
     return { query, selected };
   });
@@ -74,7 +75,7 @@ function TrackingData() {
       <Tabs value={provider} onValueChange={(value) => setProvider(value as Provider | "all")}>
         <TabsList>
           <TabsTrigger value="all">Tous les moteurs</TabsTrigger>
-          {PROVIDERS.map((item) => (
+          {engines.map((item) => (
             <TabsTrigger key={item.id} value={item.id}>
               {item.label}
             </TabsTrigger>

@@ -1,9 +1,11 @@
 import type { Provider } from "@/lib/types";
 
 export const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "openai", label: "GPT-4o" },
-  { id: "perplexity", label: "Perplexity" },
+  { id: "openai", label: "ChatGPT" },
   { id: "gemini", label: "Gemini" },
+  { id: "perplexity", label: "Perplexity" },
+  { id: "claude", label: "Claude" },
+  { id: "aistudio", label: "Google AI Studio" },
 ];
 
 export function providerLabel(provider: Provider) {

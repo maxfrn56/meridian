@@ -69,7 +69,7 @@ def overview() -> AdminOverviewOut:
             monthly += plan.price_eur
             monthly = round(monthly, 2)
             counts[plan.id] += 1
-            allowance = plan.questions_per_month
+            allowance = plan.questions_per_day
             price = plan.price_eur
             plan_name = plan.name
         questions += questions_used
@@ -87,7 +87,7 @@ def overview() -> AdminOverviewOut:
                 plan_name=plan_name,
                 price_eur=price,
                 questions_used=questions_used,
-                questions_per_month=allowance,
+                questions_per_day=allowance,
             )
         )
     return AdminOverviewOut(

@@ -9,9 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api, generateQuestions, saveSettings } from "@/lib/api";
-import type { Settings, SettingsInput, Subscription } from "@/lib/types";
+import { PROVIDERS } from "@/lib/format";
+import type { Provider, Settings, SettingsInput, Subscription } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+
+const DEFAULT_ENGINES: Provider[] = ["openai", "perplexity", "gemini"];
 
 const EMPTY: SettingsInput = {
   workspaceName: "",
@@ -19,11 +23,11 @@ const EMPTY: SettingsInput = {
   domain: "",
   sector: "",
   queries: [],
+  providers: DEFAULT_ENGINES,
 };
 
-const MAX_QUERIES = 60;
-/* Sans forfait, la génération suit le plus petit : 5 questions par mois. */
-const SMALLEST_PLAN = 5;
+const MAX_QUERIES = 200;
+const TRIAL_PER_DAY = 10;
 
 export function SettingsView() {
   const [ready, setReady] = useState(false);
@@ -39,6 +43,7 @@ function toInput(settings: Settings): SettingsInput {
     domain: settings.domain,
     sector: settings.sector,
     queries: settings.queries.map(({ prompt, active }) => ({ prompt, active })),
+    providers: settings.providers?.length === 3 ? settings.providers : DEFAULT_ENGINES,
   };
 }
 
@@ -56,7 +61,12 @@ function SettingsData() {
   }, [settings.data]);
 
   const save = useMutation({
-    mutationFn: () => saveSettings(form),
+    mutationFn: () => {
+      if (form.providers.length !== 3) {
+        throw new ApiError("Choisissez exactement trois modèles.", 422);
+      }
+      return saveSettings(form);
+    },
     onSuccess: async (data) => {
       setForm(toInput(data));
       setProposed(new Set());
@@ -71,7 +81,7 @@ function SettingsData() {
   });
 
   const filled = form.queries.filter((query) => query.prompt.trim());
-  const allowance = Math.min(billing.data?.plan?.questionsPerMonth ?? SMALLEST_PLAN, MAX_QUERIES);
+  const allowance = Math.min(billing.data?.plan?.questionsPerDay ?? (billing.data?.trialActive ? TRIAL_PER_DAY : 0), MAX_QUERIES);
   const toGenerate = Math.max(0, allowance - filled.length);
 
   const generate = useMutation({
@@ -126,12 +136,54 @@ function SettingsData() {
       </Card>
       <Card className="mt-4">
         <CardHeader>
+          <CardTitle>Modèles</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">Trois modèles reçoivent chaque question. {form.providers.length} sur 3.</p>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {PROVIDERS.map((item) => {
+            const selected = form.providers.includes(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  const chosen = form.providers;
+                  if (chosen.includes(item.id)) {
+                    setMessage(null);
+                    setForm({ ...form, providers: chosen.filter((engine) => engine !== item.id) });
+                    return;
+                  }
+                  if (chosen.length >= 3) {
+                    setMessage("Trois modèles maximum. Retirez-en un pour en changer.");
+                    return;
+                  }
+                  setMessage(null);
+                  setForm({ ...form, providers: [...chosen, item.id] });
+                }}
+                className={cn(
+                  "rounded-full border px-3 py-2 text-sm font-semibold",
+                  selected ? "border-foreground bg-foreground text-background" : "border-border bg-background",
+                )}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
+      <Card className="mt-4">
+        <CardHeader>
           <div>
             <CardTitle>
               Questions ({form.queries.length}/{MAX_QUERIES})
             </CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Votre forfait envoie {allowance} questions par mois.
+              {billing.data?.plan
+                ? `Votre forfait envoie ${allowance} questions par jour.`
+                : billing.data?.trialActive
+                  ? `L'essai envoie ${allowance} questions par jour.`
+                  : "L'essai est terminé. Choisissez un forfait pour continuer."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, selectinload, sessionmaker
@@ -91,6 +91,19 @@ class Workspace:
     plan_id: str | None = None
     period_month: str = ""
     questions_used: int = 0
+    providers: tuple[str, ...] = ("openai", "perplexity", "gemini")
+    trial_ends_at: datetime | None = None
+
+
+_KNOWN_ENGINES = {"openai", "perplexity", "gemini", "claude", "aistudio"}
+_DEFAULT_ENGINES = ("openai", "perplexity", "gemini")
+
+
+def _providers(value: str | None) -> tuple[str, ...]:
+    items = [part.strip() for part in (value or "").split(",") if part.strip() in _KNOWN_ENGINES]
+    if len(items) != 3 or len(set(items)) != 3:
+        return _DEFAULT_ENGINES
+    return tuple(items)
 
 
 def _aware(value: datetime) -> datetime:
@@ -98,8 +111,9 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _current_month() -> str:
-    return date.today().strftime("%Y-%m")
+def _current_day() -> str:
+    """Jour UTC du compteur : le forfait autorise un nombre de questions chaque jour."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def _optional_time(value: datetime | None) -> datetime | None:
@@ -239,6 +253,8 @@ class Store:
                     plan_id=workspace.plan_id,
                     period_month=workspace.period_month,
                     questions_used=workspace.questions_used,
+                    providers=",".join(workspace.providers),
+                    trial_ends_at=workspace.trial_ends_at,
                     queries=[
                         QueryRow(id=item.id, prompt=item.prompt, active=item.active, position=index)
                         for index, item in enumerate(workspace.queries)
@@ -366,12 +382,14 @@ class Store:
             plan_id=row.plan_id,
             period_month=row.period_month,
             questions_used=row.questions_used,
+            providers=_providers(row.providers),
+            trial_ends_at=_aware(row.trial_ends_at) if row.trial_ends_at else None,
         )
 
     def _roll_period(self, row: WorkspaceRow) -> None:
-        month = _current_month()
-        if row.period_month != month:
-            row.period_month = month
+        day = _current_day()
+        if row.period_month != day:
+            row.period_month = day
             row.questions_used = 0
 
     def workspace_for(self, user_id: str) -> Workspace | None:
@@ -380,7 +398,7 @@ class Store:
             return self._load(session, row) if row else None
 
     def current_workspace(self, user_id: str) -> Workspace:
-        """Espace à jour, compteur du mois remis à zéro si le mois a changé."""
+        """Espace à jour, compteur du jour remis à zéro si le jour a changé."""
         with self._session() as session, session.begin():
             row = self._workspace_row(session, user_id)
             if row is None:
@@ -397,12 +415,13 @@ class Store:
         domain: str,
         sector: str,
         queries: list[tuple[str, bool]],
+        providers: list[str] | None = None,
     ) -> Workspace:
         cleaned_domain = normalize_domain(domain)
         if not cleaned_domain:
             raise ValueError("Le domaine de la marque est requis.")
-        if len(queries) > 60:
-            raise ValueError("Soixante requêtes maximum.")
+        if len(queries) > 200:
+            raise ValueError("Deux cents requêtes maximum.")
 
         seen_prompts: set[str] = set()
         wanted_queries: list[tuple[str, bool]] = []
@@ -432,6 +451,8 @@ class Store:
             row.brand_name = brand_name.strip()
             row.domain = cleaned_domain
             row.sector = sector.strip()
+            if providers:
+                row.providers = ",".join(providers)
             row.queries = next_queries
             session.flush()
             return self._load(session, row)

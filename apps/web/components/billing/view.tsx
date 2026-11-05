@@ -61,37 +61,48 @@ export function BillingView() {
     );
   }
   const data = billing.data;
-  const used = data.plan ? Math.min(100, Math.round((data.questionsUsed / data.plan.questionsPerMonth) * 100)) : 0;
+  const allowance = data.plan?.questionsPerDay ?? (data.trialActive ? 10 : 0);
+  const used = allowance ? Math.min(100, Math.round((data.questionsUsed / allowance) * 100)) : 0;
+  const trialDate = data.trialEndsAt
+    ? new Date(data.trialEndsAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })
+    : "";
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
         title="Choisissez le nombre de questions"
-        description="Une question est envoyée aux trois moteurs et compte pour une dans le forfait. Le compte reste ouvert : position, sources et axes d'amélioration se consultent sans nouvelle question."
+        description="Sept jours d'essai, dix questions par jour, sans carte. Ensuite, une question est envoyée aux trois modèles choisis et compte pour une dans la journée. Le compteur repart à zéro chaque jour."
       />
       {message ? (
         <p className="mb-4 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-semibold" role="status">
           {message}
         </p>
       ) : null}
-      {data.plan ? (
+      {data.plan || data.trialActive ? (
         <Card className="mb-4">
           <CardContent className="pt-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-sm text-muted-foreground">Mois en cours · {data.periodMonth}</p>
-                <p className="mt-2 text-lg font-medium">{data.plan.name}</p>
+                <p className="text-sm text-muted-foreground">Aujourd'hui · {data.periodDay}</p>
+                <p className="mt-2 text-lg font-medium">{data.plan ? data.plan.name : "Essai gratuit"}</p>
                 <p className="text-sm text-muted-foreground">
-                  {data.questionsUsed} sur {data.plan.questionsPerMonth} questions envoyées. Il en reste {data.questionsRemaining}.
+                  {data.questionsUsed} sur {allowance} questions envoyées aujourd'hui. Il en reste {data.questionsRemaining}.
+                  {data.trialActive && trialDate ? ` Essai jusqu'au ${trialDate}.` : ""}
                 </p>
               </div>
-              <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{euros(data.plan.priceEur)}<span className="text-sm text-muted-foreground"> / mois</span></p>
+              {data.plan ? (
+                <p className="tabular-nums text-2xl font-semibold tracking-[-0.02em]">{euros(data.plan.priceEur)}<span className="text-sm text-muted-foreground"> / mois</span></p>
+              ) : null}
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-foreground" style={{ width: `${used}%` }} />
             </div>
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        <p className="mb-4 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-semibold">
+          L'essai de 7 jours est terminé. Choisissez un forfait pour continuer à envoyer des questions.
+        </p>
+      )}
       <div className="grid gap-4 lg:grid-cols-3">
         {data.plans.map((plan) => {
           const current = data.plan?.id === plan.id;
@@ -105,7 +116,7 @@ export function BillingView() {
               </CardHeader>
               <CardContent>
                 <p className="tabular-nums text-3xl font-semibold tracking-[-0.03em]">{euros(plan.priceEur)}<span className="text-sm text-muted-foreground"> / mois</span></p>
-                <p className="mt-3 text-sm font-medium">{plan.questionsPerMonth} questions par mois</p>
+                <p className="mt-3 text-sm font-medium">{plan.questionsPerDay} questions par jour</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.detail}</p>
                 <Button className="mt-5 w-full" variant="outline" disabled={current || choose.isPending} onClick={() => choose.mutate(plan.id)}>
                   {current ? "Forfait en cours" : choose.isPending && choose.variables === plan.id ? "Ouverture de Stripe…" : "Payer ce forfait"}

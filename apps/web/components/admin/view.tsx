@@ -80,7 +80,7 @@ export function AdminView() {
                 <th className="px-4 py-3 font-medium">Espace</th>
                 <th className="px-4 py-3 font-medium">Forfait</th>
                 <th className="px-4 py-3 font-medium">Montant</th>
-                <th className="px-4 py-3 font-medium">Questions</th>
+                <th className="px-4 py-3 font-medium">Questions aujourd'hui</th>
                 <th className="px-4 py-3 font-medium">Ouvert le</th>
               </tr>
             </thead>
@@ -110,7 +110,7 @@ export function AdminView() {
                     <td className="px-4 py-3">{client.planName ?? "Aucun"}</td>
                     <td className="px-4 py-3 tabular-nums">{client.planName ? `${euros(client.priceEur)} / mois` : "—"}</td>
                     <td className="px-4 py-3 tabular-nums">
-                      {client.planName ? `${client.questionsUsed} / ${client.questionsPerMonth}` : "—"}
+                      {client.planName ? `${client.questionsUsed} / ${client.questionsPerDay}` : "—"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{openedOn(client.createdAt)}</td>
                   </tr>

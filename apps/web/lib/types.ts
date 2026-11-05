@@ -1,4 +1,4 @@
-export type Provider = "openai" | "perplexity" | "gemini";
+export type Provider = "openai" | "perplexity" | "gemini" | "claude" | "aistudio";
 export type LlmMode = "mock" | "live" | "mixed";
 
 export type User = {
@@ -151,6 +151,7 @@ export type Settings = {
   domain: string;
   sector: string;
   queries: { id: string; prompt: string; active: boolean }[];
+  providers: Provider[];
 };
 
 export type ProspectStatus = "a_contacter" | "envoye" | "relance" | "rdv" | "devis" | "gagne" | "perdu";
@@ -250,7 +251,7 @@ export type Plan = {
   id: string;
   name: string;
   priceEur: number;
-  questionsPerMonth: number;
+  questionsPerDay: number;
   detail: string;
 };
 
@@ -280,7 +281,7 @@ export type AdminOverview = {
     planName: string | null;
     priceEur: number;
     questionsUsed: number;
-    questionsPerMonth: number;
+    questionsPerDay: number;
   }[];
 };
 
@@ -288,8 +289,10 @@ export type Subscription = {
   plan: Plan | null;
   questionsUsed: number;
   questionsRemaining: number;
-  periodMonth: string;
+  periodDay: string;
   plans: Plan[];
+  trialActive: boolean;
+  trialEndsAt: string | null;
 };
 
 export type SettingsInput = {
@@ -298,4 +301,5 @@ export type SettingsInput = {
   domain: string;
   sector: string;
   queries: { prompt: string; active: boolean }[];
+  providers: Provider[];
 };

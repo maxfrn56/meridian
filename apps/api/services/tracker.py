@@ -7,7 +7,8 @@ from services.analyzer import Citation, Entity, host_of
 from services.llm import complete
 from services.simulator import Source
 
-PROVIDERS = ("openai", "perplexity", "gemini")
+PROVIDERS = ("openai", "perplexity", "gemini", "claude", "aistudio")
+DEFAULT_PROVIDERS = ("openai", "perplexity", "gemini")
 
 
 def entities_from_workspace(brand_name: str, domain: str) -> list[Entity]:

@@ -18,7 +18,7 @@ async def run_tracking(
     workspace = store.workspace_for(user_id)
     if workspace is None:
         raise ValueError("Espace introuvable.")
-    selected = providers or list(PROVIDERS)
+    selected = list(providers) if providers else list(workspace.providers)
     unknown = [item for item in selected if item not in PROVIDERS]
     if unknown:
         raise ValueError(f"Moteur inconnu : {', '.join(unknown)}.")

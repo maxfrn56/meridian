@@ -8,7 +8,7 @@ const PLANS = [
     pitch: "Pour mesurer votre point de départ.",
     price: "79,9 €",
     period: "HT / mois",
-    questions: "5 questions par mois",
+    questions: "20 questions par jour",
     features: ["Concurrents repérés dans les réponses", "1 audit de site par mois", "2 utilisateurs", "Rapport mensuel en PDF"],
     cta: "Lancer l'audit gratuit",
     featured: false,
@@ -18,7 +18,7 @@ const PLANS = [
     pitch: "Pour gagner des places face à vos concurrents.",
     price: "189,9 €",
     period: "HT / mois",
-    questions: "20 questions par mois",
+    questions: "100 questions par jour",
     features: [
       "Concurrents repérés dans les réponses",
       "Audit de site chaque semaine",
@@ -34,7 +34,7 @@ const PLANS = [
     pitch: "Pour couvrir plusieurs produits et plusieurs zones.",
     price: "389,9 €",
     period: "HT / mois",
-    questions: "60 questions par mois",
+    questions: "200 questions par jour",
     features: [
       "Concurrents repérés dans les réponses",
       "Audits illimités",
@@ -53,8 +53,8 @@ export function Pricing() {
         <Reveal className="lp-section-head">
           <MaskedTitle id="pricing-title" className="lp-h2" text="Un forfait selon le nombre de questions envoyées." />
           <p className="lp-lead">
-            Chaque question est posée à ChatGPT, Perplexity et Gemini. Tous les forfaits incluent l&apos;audit de votre
-            site. Sans engagement, résiliable chaque mois.
+            Sept jours d&apos;essai, dix questions par jour, sans carte. Ensuite, chaque question est posée aux trois
+            modèles choisis. Sans engagement, résiliable chaque mois.
           </p>
         </Reveal>
 
