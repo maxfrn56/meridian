@@ -1,12 +1,13 @@
 """Génération des questions de suivi par Claude (Haiku par défaut).
 
-Le nombre de questions suit le forfait : autant que de questions envoyées par mois, moins celles
+Le nombre de questions suit le forfait : autant que de questions envoyées par jour, moins celles
 déjà en place. Les questions sont proposées, pas enregistrées : le client les relit puis enregistre.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 import anthropic
 import httpx
@@ -16,11 +17,11 @@ from pydantic import BaseModel
 from config import settings
 from services.analyzer import fold, normalize_domain
 from services.auditor import USER_AGENT, assert_public_http_url
-from services.billing import PLANS, plan_by_id
+from services.billing import TRIAL_PER_DAY, plan_by_id, trial_is_active
 
 logger = logging.getLogger(__name__)
 
-MAX_QUERIES = 60
+MAX_QUERIES = 200
 MIN_LENGTH = 8
 MAX_LENGTH = 400
 SITE_EXCERPT = 2000
@@ -51,10 +52,16 @@ class GenerationError(Exception):
         self.status = status
 
 
-def question_budget(plan_id: str | None, existing: int) -> int:
-    """Autant de questions que le forfait en envoie par mois ; le plus petit forfait sans abonnement."""
-    plan = plan_by_id(plan_id) or PLANS[0]
-    return max(0, min(plan.questions_per_month, MAX_QUERIES) - existing)
+def question_budget(plan_id: str | None, existing: int, trial_ends_at: datetime | None = None) -> int:
+    """Autant de questions que le forfait, ou l'essai, en envoie par jour."""
+    plan = plan_by_id(plan_id)
+    if plan is not None:
+        allowance = plan.questions_per_day
+    elif trial_ends_at is not None and not trial_is_active(trial_ends_at, plan_id):
+        allowance = 0
+    else:
+        allowance = TRIAL_PER_DAY
+    return max(0, min(allowance, MAX_QUERIES) - existing)
 
 
 async def site_summary(domain: str) -> str:
@@ -170,12 +177,13 @@ async def generate_questions(
     sector: str,
     existing: list[str],
     plan_id: str | None,
+    trial_ends_at: datetime | None = None,
     client: anthropic.AsyncAnthropic | None = None,
 ) -> list[str]:
-    count = question_budget(plan_id, len(existing))
+    count = question_budget(plan_id, len(existing), trial_ends_at)
     if count == 0:
         raise GenerationError(
-            "Votre liste couvre déjà toutes les questions que votre forfait envoie chaque mois.", status=422
+            "Votre liste couvre déjà toutes les questions que votre forfait envoie chaque jour.", status=422
         )
     if client is None and not settings.anthropic_api_key:
         raise GenerationError("La génération de questions n'est pas configurée.", status=503)

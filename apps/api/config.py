@@ -25,16 +25,11 @@ def _flag(name: str, default: str) -> str:
     return os.getenv(name, default).strip().lower()
 
 
-# Moteurs suivis, dans l'ordre d'affichage. « openai » reste l'identifiant de ChatGPT : l'historique y est rattaché.
-ENGINES = ("openai", "google_ai_overview", "google_ai_mode", "gemini", "perplexity", "claude")
-# Moteurs que DataForSEO sait interroger ; les autres n'ont qu'un appel direct, avec leur propre clé.
-DATAFORSEO_ENGINES = frozenset(ENGINES)
-
-
-def _engines(raw: str) -> tuple[str, ...]:
-    wanted = [part.strip().lower() for part in raw.split(",") if part.strip()]
-    chosen = tuple(engine for engine in ENGINES if engine in wanted)
-    return chosen or ENGINES
+# Catalogue des moteurs, dans l'ordre d'affichage. Chaque espace en choisit trois.
+# « openai » reste l'identifiant de ChatGPT : l'historique y est rattaché.
+ENGINES = ("openai", "google_ai_overview", "google_ai_mode", "gemini", "perplexity", "claude", "aistudio")
+# Moteurs que DataForSEO sait interroger. AI Studio n'a qu'un appel direct, avec la clé Gemini.
+DATAFORSEO_ENGINES = frozenset(ENGINES) - {"aistudio"}
 
 
 @dataclass(frozen=True)
@@ -60,7 +55,6 @@ class Settings:
     dataforseo_language: str = "fr"
     claude_model: str = "claude-sonnet-5-5"
     perplexity_model: str = "sonar"
-    engines: tuple[str, ...] = ENGINES
 
     def provider_backend(self, provider: str) -> str | None:
         """dataforseo si ses identifiants sont posés, sinon l'API directe si sa clé existe, sinon rien."""
@@ -70,6 +64,8 @@ class Settings:
             "openai": self.openai_api_key,
             "perplexity": self.perplexity_api_key,
             "gemini": self.gemini_api_key,
+            "claude": self.anthropic_api_key,
+            "aistudio": self.gemini_api_key,
         }.get(provider, "")
         return "direct" if key else None
 
@@ -129,7 +125,6 @@ def load_settings() -> Settings:
         dataforseo_language=(os.getenv("DATAFORSEO_LANGUAGE", "fr").strip() or "fr").lower(),
         claude_model=os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5").strip() or "claude-sonnet-5-5",
         perplexity_model=os.getenv("PERPLEXITY_MODEL", "sonar").strip() or "sonar",
-        engines=_engines(os.getenv("ENGINES", "")),
     )
 
 

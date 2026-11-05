@@ -8,6 +8,7 @@ export const PROVIDERS: { id: Provider; label: string }[] = [
   { id: "gemini", label: "Gemini" },
   { id: "perplexity", label: "Perplexity" },
   { id: "claude", label: "Claude" },
+  { id: "aistudio", label: "Google AI Studio" },
 ];
 
 export function providerLabel(provider: Provider) {

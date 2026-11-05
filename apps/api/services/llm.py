@@ -19,7 +19,8 @@ MODELS = {
     "gemini": "gemini-3.8-flash",
     "google_ai_overview": "Google AI Overviews",
     "google_ai_mode": "Google AI Mode",
-    "claude": "claude",
+    "claude": "claude-haiku-5-5",
+    "aistudio": "gemini-2.5-flash",
 }
 
 
@@ -135,9 +136,10 @@ async def _call_perplexity(prompt: str) -> ProviderResult:
     )
 
 
-async def _call_gemini(prompt: str) -> ProviderResult:
+async def _call_gemini(prompt: str, model: str) -> ProviderResult:
     # La clé passe en en-tête : dans l'URL, elle se retrouvait dans les messages d'erreur.
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODELS['gemini']}:generateContent"
+    # Google AI Studio utilise la même API, avec son propre modèle.
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post(
             url,
@@ -157,7 +159,43 @@ async def _call_gemini(prompt: str) -> ProviderResult:
         web = chunk.get("web") or {}
         if web.get("uri"):
             sources.append(Source(url=web["uri"], title=web.get("title") or host_of(web["uri"])))
-    return ProviderResult(text=text, sources=_dedupe(sources), model=MODELS["gemini"], source_mode="live")
+    return ProviderResult(text=text, sources=_dedupe(sources), model=model, source_mode="live")
+
+
+async def _call_claude(prompt: str) -> ProviderResult:
+    model = settings.analysis_model or MODELS["claude"]
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": settings.anthropic_api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model,
+                "max_tokens": 2048,
+                "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+    texts: list[str] = []
+    sources: list[Source] = []
+    for block in payload.get("content") or []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "text" and block.get("text"):
+            texts.append(str(block["text"]))
+            for citation in block.get("citations") or []:
+                if isinstance(citation, dict) and citation.get("url"):
+                    sources.append(Source(url=citation["url"], title=citation.get("title") or host_of(citation["url"])))
+        if block.get("type") == "web_search_tool_result":
+            for item in block.get("content") or []:
+                if isinstance(item, dict) and item.get("url"):
+                    sources.append(Source(url=item["url"], title=item.get("title") or host_of(item["url"])))
+    return ProviderResult(text="\n".join(texts), sources=_dedupe(sources), model=model, source_mode="live")
 
 
 def _dedupe(sources: list[Source]) -> list[Source]:
@@ -190,7 +228,11 @@ async def complete(provider: str, prompt: str, entities: list[Entity], nonce: st
         if provider == "perplexity":
             return await _call_perplexity(prompt)
         if provider == "gemini":
-            return await _call_gemini(prompt)
+            return await _call_gemini(prompt, MODELS["gemini"])
+        if provider == "aistudio":
+            return await _call_gemini(prompt, MODELS["aistudio"])
+        if provider == "claude":
+            return await _call_claude(prompt)
         raise EngineUnavailable("Aucun accès configuré pour ce moteur : ajoutez les identifiants DataForSEO.")
     except (httpx.HTTPError, KeyError, IndexError, ValueError, DataForSEOError) as error:
         return ProviderResult(

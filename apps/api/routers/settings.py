@@ -15,6 +15,7 @@ def _out(workspace: Workspace) -> SettingsOut:
         domain=workspace.domain,
         sector=workspace.sector,
         queries=[QueryOut(id=item.id, prompt=item.prompt, active=item.active) for item in workspace.queries],
+        providers=list(workspace.providers),
     )
 
 
@@ -33,6 +34,7 @@ def write_settings(payload: SettingsIn, workspace: Workspace = Depends(current_w
             payload.domain,
             payload.sector,
             [(item.prompt, item.active) for item in payload.queries],
+            providers=payload.providers or None,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -41,7 +43,7 @@ def write_settings(payload: SettingsIn, workspace: Workspace = Depends(current_w
 
 @router.post("/queries/generate", response_model=GenerateQuestionsOut)
 async def generate(payload: GenerateQuestionsIn, workspace: Workspace = Depends(current_workspace)) -> GenerateQuestionsOut:
-    """Propose autant de questions que le forfait en envoie par mois. Rien n'est enregistré ici."""
+    """Propose autant de questions que le forfait en envoie par jour. Rien n'est enregistré ici."""
     try:
         questions = await generate_questions(
             brand_name=payload.brand_name.strip(),
@@ -49,6 +51,7 @@ async def generate(payload: GenerateQuestionsIn, workspace: Workspace = Depends(
             sector=payload.sector.strip(),
             existing=[item for item in payload.existing if item.strip()],
             plan_id=workspace.plan_id,
+            trial_ends_at=workspace.trial_ends_at,
         )
     except GenerationError as error:
         raise HTTPException(status_code=error.status, detail=error.message) from error

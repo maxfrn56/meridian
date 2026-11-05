@@ -35,12 +35,15 @@ def test_questions_stay_on_the_city_when_one_is_known():
 
 
 def test_budget_follows_the_plan():
-    assert question_budget("essentiel", 0) == 5
-    assert question_budget("croissance", 12) == 8
-    assert question_budget("reference", 0) == 60
-    assert question_budget("reference", 70) == 0
-    # Sans forfait : le plus petit.
-    assert question_budget(None, 0) == 5
+    assert question_budget("essentiel", 0) == 20
+    assert question_budget("croissance", 12) == 88
+    assert question_budget("reference", 0) == 200
+    assert question_budget("reference", 250) == 0
+    # Sans forfait : l'essai, dix questions par jour.
+    assert question_budget(None, 0) == 10
+    from datetime import datetime, timedelta, timezone
+
+    assert question_budget(None, 0, datetime.now(timezone.utc) - timedelta(days=1)) == 0
 
 
 def test_questions_naming_the_brand_or_repeated_are_dropped():
@@ -78,11 +81,11 @@ def test_generation_endpoint_proposes_the_plan_budget(client, monkeypatch):  # n
     )
     assert response.status_code == 200
     questions = response.json()["questions"]
-    # Forfait Croissance : 20 questions par mois, 12 déjà en place.
-    assert questions == proposals[:8]
+    # Forfait Croissance : 100 questions par jour, 12 déjà en place. Le faux n'en propose que neuf.
+    assert questions == proposals
     call = fake.messages.calls[0]
     assert call["output_format"] is GeneratedQuestions
-    assert "Écris 10 nouvelles questions." in call["messages"][0]["content"]
+    assert "Écris 96 nouvelles questions." in call["messages"][0]["content"]
     assert "<site>" in call["messages"][0]["content"]
     # Rien n'est enregistré : le client relit avant d'enregistrer.
     assert len(client.get("/api/v1/settings", headers=headers).json()["queries"]) == 12
@@ -102,7 +105,7 @@ def test_generation_without_key_says_so(client, monkeypatch):  # noqa: F811
 
 def test_full_list_cannot_grow(client):  # noqa: F811
     headers = {"Authorization": f"Bearer {_token(client)}"}
-    existing = [f"Question numéro {index} sur l'analyse produit ?" for index in range(20)]
+    existing = [f"Question numéro {index} sur l'analyse produit ?" for index in range(100)]
     response = client.post(
         "/api/v1/settings/queries/generate",
         headers=headers,

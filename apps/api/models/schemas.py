@@ -6,7 +6,11 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
-Provider = Literal["openai", "google_ai_overview", "google_ai_mode", "gemini", "perplexity", "claude"]
+from config import ENGINES
+
+Provider = Literal[
+    "openai", "google_ai_overview", "google_ai_mode", "gemini", "perplexity", "claude", "aistudio"
+]
 EntityType = Literal["brand", "competitor"]
 CheckStatus = Literal["pass", "warn", "fail"]
 Priority = Literal["P1", "P2", "P3"]
@@ -128,7 +132,7 @@ class AdminClientOut(APIModel):
     plan_name: str | None
     price_eur: float
     questions_used: int
-    questions_per_month: int
+    questions_per_day: int
 
 
 class AdminPlanStatOut(APIModel):
@@ -159,17 +163,26 @@ class QueryIn(APIModel):
     active: bool = True
 
 
+
+
 class SettingsIn(APIModel):
     workspace_name: str = Field(min_length=2, max_length=80)
     brand_name: str = Field(min_length=1, max_length=80)
     domain: str = Field(min_length=3, max_length=160)
     sector: str = Field(min_length=2, max_length=80)
     queries: list[QueryIn] = Field(default_factory=list)
+    providers: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def enforce_limits(self) -> "SettingsIn":
-        if len(self.queries) > 60:
-            raise ValueError("Soixante requêtes maximum.")
+        if len(self.queries) > 200:
+            raise ValueError("Deux cents requêtes maximum.")
+        if self.providers and (
+            len(self.providers) != 3 or len(set(self.providers)) != 3 or any(item not in ENGINES for item in self.providers)
+        ):
+            raise ValueError(
+                "Choisissez exactement trois modèles parmi ChatGPT, Gemini, Perplexity, Claude et Google AI Studio."
+            )
         return self
 
 
@@ -185,7 +198,7 @@ class GenerateQuestionsIn(APIModel):
     brand_name: str = Field(min_length=1, max_length=80)
     domain: str = Field(min_length=3, max_length=160)
     sector: str = Field(default="", max_length=80)
-    existing: list[str] = Field(default_factory=list, max_length=60)
+    existing: list[str] = Field(default_factory=list, max_length=200)
 
 
 class GenerateQuestionsOut(APIModel):
@@ -198,6 +211,7 @@ class SettingsOut(APIModel):
     domain: str
     sector: str
     queries: list[QueryOut]
+    providers: list[str]
 
 
 class CitationOut(APIModel):
@@ -430,7 +444,7 @@ class PlanOut(APIModel):
     id: str
     name: str
     price_eur: float
-    questions_per_month: int
+    questions_per_day: int
     detail: str
 
 
@@ -438,8 +452,10 @@ class SubscriptionOut(APIModel):
     plan: PlanOut | None
     questions_used: int
     questions_remaining: int
-    period_month: str
+    period_day: str
     plans: list[PlanOut]
+    trial_active: bool = False
+    trial_ends_at: datetime | None = None
 
 
 class SubscribeIn(APIModel):

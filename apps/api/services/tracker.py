@@ -10,6 +10,8 @@ from services.llm import complete
 from services.simulator import Source
 
 PROVIDERS = ENGINES
+# Choix par défaut d'un espace : trois moteurs parmi le catalogue (le client peut les changer).
+DEFAULT_PROVIDERS = ("openai", "perplexity", "gemini")
 # Questions envoyées en même temps à un même moteur (DataForSEO accepte 30 tâches live par plateforme).
 PER_ENGINE = 5
 

@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api, generateQuestions, saveSettings } from "@/lib/api";
-import type { Settings, SettingsInput } from "@/lib/types";
+import { providerLabel, PROVIDERS } from "@/lib/format";
+import type { Provider, Settings, SettingsInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
@@ -13,8 +14,9 @@ import { useEffect, useRef, useState } from "react";
 
 const ACTIVITIES = ["Commerce", "Service local", "Logiciel", "Industrie", "Conseil"] as const;
 const MARKETS = ["France", "Belgique", "Suisse", "Canada"] as const;
-const STEPS = 6;
-const MAX_QUESTIONS = 60;
+const STEPS = 7;
+const DEFAULT_ENGINES: Provider[] = ["openai", "perplexity", "gemini"];
+const MAX_QUESTIONS = 200;
 
 function suggestBrand(domain: string) {
   const host = domain.trim().replace(/^https?:\/\//i, "").split("/")[0]?.replace(/^www\./i, "") ?? "";
@@ -38,6 +40,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const [market, setMarket] = useState("France");
   const [city, setCity] = useState("");
   const [multi, setMulti] = useState(false);
+  const [engines, setEngines] = useState<Provider[]>(DEFAULT_ENGINES);
   const [questions, setQuestions] = useState<string[]>([""]);
   const [coach, setCoach] = useState(false);
   const [coachPage, setCoachPage] = useState(0);
@@ -62,7 +65,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   function go(next: number) {
     setError(null);
     setStep(next);
-    if (next === 4 && !generating && questions.every((item) => item.trim().length < 8)) {
+    if (next === 5 && !generating && questions.every((item) => item.trim().length < 8)) {
       void propose();
     }
   }
@@ -103,7 +106,8 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     if (index === 1 && brand.trim().length < 1) return "Indiquez le nom de la marque.";
     if (index === 2 && offer.trim().length < 2) return "Décrivez en quelques mots ce que l'entreprise vend.";
     if (index === 3 && !market.trim()) return "Choisissez un pays.";
-    if (index === 4 && !questions.some((item) => item.trim().length >= 8)) {
+    if (index === 4 && engines.length !== 3) return "Choisissez trois modèles.";
+    if (index === 5 && !questions.some((item) => item.trim().length >= 8)) {
       return "Écrivez au moins une question, telle qu'un client la poserait.";
     }
     return null;
@@ -122,10 +126,10 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   }
 
   async function finish() {
-    const problem = validate(4);
+    const problem = validate(5);
     if (problem) {
       setError(problem);
-      setStep(4);
+      setStep(5);
       return;
     }
     const payload: SettingsInput = {
@@ -133,6 +137,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
       brandName: brand.trim().slice(0, 80),
       domain: domain.trim(),
       sector: sectorLine(offer, market, city, multi),
+      providers: engines,
       queries: keptQuestions(questions)
         .slice(0, MAX_QUESTIONS)
         .map((prompt) => ({ prompt: prompt.slice(0, 400), active: true })),
@@ -319,9 +324,50 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
 
           {step === 4 ? (
             <>
+              <h1 className="text-3xl font-semibold tracking-[-0.03em]">Quels trois modèles interroger ?</h1>
+              <p className="mt-3 text-base leading-6 text-muted-foreground">
+                Chaque question part vers ces trois modèles. Choisissez-en trois, pas plus.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {PROVIDERS.map((item) => {
+                  const selected = engines.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        if (engines.includes(item.id)) {
+                          setError(null);
+                          setEngines(engines.filter((engine) => engine !== item.id));
+                          return;
+                        }
+                        if (engines.length >= 3) {
+                          setError("Trois modèles maximum. Retirez-en un pour en changer.");
+                          return;
+                        }
+                        setError(null);
+                        setEngines([...engines, item.id]);
+                      }}
+                      className={cn(
+                        "rounded-full border px-3 py-2 text-sm font-semibold",
+                        selected ? "border-foreground bg-foreground text-background" : "border-border bg-background",
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-sm text-muted-foreground">{engines.length} sur 3</p>
+            </>
+          ) : null}
+
+          {step === 5 ? (
+            <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Que demandent vos clients aux IA ?</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                Les questions se rédigent à partir du site et de l'activité, puis sont posées à ChatGPT, Perplexity et Gemini. Relisez-les avant de continuer.
+                Les questions se rédigent à partir du site et de l'activité, puis sont posées aux trois modèles choisis. Relisez-les avant de continuer.
               </p>
               {generating ? (
                 <p className="mt-8 text-sm font-semibold" role="status">
@@ -383,16 +429,17 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
             </>
           ) : null}
 
-          {step === 5 ? (
+          {step === 6 ? (
             <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Voici ce qu'on va mesurer.</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                Ces questions sont envoyées à ChatGPT, Perplexity et Gemini. Le suivi mesure s'ils vous citent.
+                Ces questions sont envoyées aux trois modèles choisis. Le suivi mesure s'ils vous citent.
               </p>
               <dl className="mt-6 divide-y divide-border rounded-xl border border-border">
                 <Summary label="Site" value={domain.trim()} />
                 <Summary label="Marque" value={brand.trim()} />
                 <Summary label="Activité" value={sectorLine(offer, market, city, multi)} />
+                <Summary label="Modèles" value={engines.map((item) => providerLabel(item)).join(", ")} />
                 <Summary
                   label="Questions"
                   value={questions.map((item) => item.trim()).filter((item) => item.length >= 8).join(" · ") || "Aucune"}
@@ -420,7 +467,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {coach && step === 4 ? (
+      {coach && step === 5 ? (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-2xl bg-background p-6 shadow-float" role="dialog" aria-modal="true" aria-labelledby="coach-title">
             <p className="text-sm text-muted-foreground">

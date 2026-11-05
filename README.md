@@ -16,7 +16,7 @@ L'interface est sur [http://localhost:3000](http://localhost:3000). Compte de d�
 
 Sans accès aux moteurs, les réponses sont simulées et l'interface l'indique. Posez les identifiants dans un fichier `.env` à la racine (voir `.env.example`) pour passer en appels réels.
 
-**DataForSEO** (`DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`) interroge les six moteurs suivis (`services/dataforseo.py`) :
+Chaque espace choisit trois moteurs dans le catalogue. **DataForSEO** (`DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`) interroge les six premiers (`services/dataforseo.py`) :
 
 | Moteur | Ce qui est mesuré |
 |---|---|
@@ -27,7 +27,7 @@ Sans accès aux moteurs, les réponses sont simulées et l'interface l'indique. 
 | Perplexity | l'API Sonar, avec recherche web |
 | Claude | l'API Claude (`CLAUDE_MODEL`), avec recherche web |
 
-Le pays (`DATAFORSEO_COUNTRY`, France par défaut) règle la localisation ; la langue est déduite de la question. `ENGINES` limite les moteurs interrogés. Quand Google n'affiche pas de résumé IA, la réponse est marquée « Pas de réponse IA » et sort des calculs.
+Google AI Studio n'est pas couvert par DataForSEO : il passe par `GEMINI_API_KEY`. Le pays (`DATAFORSEO_COUNTRY`, France par défaut) règle la localisation ; la langue est déduite de la question. Quand Google n'affiche pas de résumé IA, la réponse est marquée « Pas de réponse IA » et sort des calculs.
 
 Sans DataForSEO, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY` et `GEMINI_API_KEY` permettent des appels directs (utile en développement) ; les moteurs sans accès sont simulés. `MOCK_LLM=auto` interroge un moteur seulement s'il a un accès.
 

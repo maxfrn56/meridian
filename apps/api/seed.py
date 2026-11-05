@@ -120,7 +120,7 @@ def seed_demo(target: store.__class__ | None = None) -> None:
         sector="Product analytics",
         queries=queries,
         plan_id="croissance",
-        period_month=datetime.now(timezone.utc).strftime("%Y-%m"),
+        period_month=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         questions_used=0,
     )
     destination.add_user(user, workspace)

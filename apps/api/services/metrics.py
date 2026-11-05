@@ -170,7 +170,7 @@ def _completed(workspace: Workspace) -> list[StoredRun]:
 def llm_mode(workspace: Workspace) -> str:
     completed = _completed(workspace)
     if not completed:
-        modes = {settings.provider_mode(provider) for provider in settings.engines}
+        modes = {settings.provider_mode(provider) for provider in workspace.providers}
     else:
         latest = max(run.created_at for run in completed).date()
         modes = {run.source for run in completed if run.created_at.date() == latest}
@@ -314,13 +314,13 @@ def build_tracking(workspace: Workspace) -> TrackingOut:
     queries: list[QueryTrackingOut] = []
     for query in workspace.queries:
         runs = {}
-        for provider in settings.engines:
+        for provider in workspace.providers:
             found = latest.get((query.id, provider))
             runs[provider] = project_run(found, entities) if found else None
         queries.append(QueryTrackingOut(id=query.id, prompt=query.prompt, active=query.active, runs=runs))
     return TrackingOut(
         queries=queries,
-        providers=list(settings.engines),  # type: ignore[arg-type]
+        providers=list(workspace.providers),  # type: ignore[arg-type]
         llm_mode=llm_mode(workspace),  # type: ignore[arg-type]
     )
 

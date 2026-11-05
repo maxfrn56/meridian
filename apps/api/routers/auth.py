@@ -120,6 +120,7 @@ def register(payload: RegisterIn) -> MessageOut:
                 brand_name=name,
                 domain="",
                 sector="",
+                trial_ends_at=datetime.now(timezone.utc) + timedelta(days=7),
             ),
         )
     except ValueError as error:

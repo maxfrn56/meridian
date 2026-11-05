@@ -11,7 +11,7 @@ import pytest
 
 import services.dataforseo as dataforseo
 import services.llm as llm
-from config import settings
+from config import DATAFORSEO_ENGINES, settings
 from services.dataforseo import DataForSEOError, ask, build_task, guess_language
 from services.tracker import BatchResult
 
@@ -154,7 +154,7 @@ def test_no_answer_runs_are_kept_apart():
 
 def test_dataforseo_takes_over_every_engine_when_configured():
     configured = SimpleNamespace(**{**settings.__dict__, "dataforseo_login": "l", "dataforseo_password": "p"})
-    assert all(type(settings).provider_backend(configured, engine) == "dataforseo" for engine in settings.engines)
+    assert all(type(settings).provider_backend(configured, engine) == "dataforseo" for engine in DATAFORSEO_ENGINES)
     bare = SimpleNamespace(**{**settings.__dict__, "dataforseo_login": "", "openai_api_key": "", "gemini_api_key": ""})
     assert type(settings).provider_backend(bare, "openai") is None
     assert type(settings).provider_backend(bare, "claude") is None

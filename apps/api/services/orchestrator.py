@@ -6,7 +6,6 @@ from services.auditor import crawl_site
 from services.billing import assert_quota
 from services.llm_analysis import analysis_version, analyze_runs
 from services.metrics import entities_of
-from config import settings
 from services.tracker import PROVIDERS, execute_batch
 from store import StoredAudit, StoredRun, store
 
@@ -19,7 +18,7 @@ async def run_tracking(
     workspace = store.workspace_for(user_id)
     if workspace is None:
         raise ValueError("Espace introuvable.")
-    selected = providers or list(settings.engines)
+    selected = list(providers) if providers else list(workspace.providers)
     unknown = [item for item in selected if item not in PROVIDERS]
     if unknown:
         raise ValueError(f"Moteur inconnu : {', '.join(unknown)}.")

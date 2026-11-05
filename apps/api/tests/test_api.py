@@ -112,16 +112,49 @@ def test_subscription_limits_questions_sent_this_month(client: TestClient):
     assert billing.status_code == 200
     body = billing.json()
     assert body["plan"]["id"] == "croissance"
-    assert body["plan"]["questionsPerMonth"] == 20
+    assert body["plan"]["questionsPerDay"] == 100
     assert len(body["plans"]) == 3
     switched = client.post("/api/v1/billing", headers=headers, json={"planId": "essentiel"})
     assert switched.status_code == 200
-    assert switched.json()["questionsRemaining"] == 5
-    blocked = client.post("/api/v1/tracking/run", headers=headers, json={})
+    assert switched.json()["questionsRemaining"] == 20
+    sent = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
+    assert sent.status_code == 200
+    blocked = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
     assert blocked.status_code == 400
-    assert "Essentiel" in blocked.json()["detail"]
+    assert "aujourd'hui" in blocked.json()["detail"]
     after = client.get("/api/v1/billing", headers=headers).json()
-    assert after["questionsUsed"] == 0
+    assert after["questionsUsed"] == 12
+    assert after["trialActive"] is False
+
+
+def test_settings_require_exactly_three_engines(client: TestClient):
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    current = client.get("/api/v1/settings", headers=headers).json()
+    assert current["providers"] == ["openai", "perplexity", "gemini"]
+    refused = client.put("/api/v1/settings", headers=headers, json={**current, "providers": ["openai", "claude"]})
+    assert refused.status_code == 422
+    saved = client.put(
+        "/api/v1/settings",
+        headers=headers,
+        json={**current, "providers": ["openai", "claude", "aistudio"]},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["providers"] == ["openai", "claude", "aistudio"]
+    tracking = client.get("/api/v1/tracking", headers=headers).json()
+    assert tracking["providers"] == ["openai", "claude", "aistudio"]
+
+
+def test_trial_allows_ten_questions_before_a_plan():
+    from datetime import datetime, timedelta, timezone
+
+    from services.billing import questions_allowed
+
+    future = datetime.now(timezone.utc) + timedelta(days=2)
+    past = datetime.now(timezone.utc) - timedelta(days=1)
+    assert questions_allowed(None, future) == 10
+    assert questions_allowed("essentiel", future) == 20
+    with pytest.raises(ValueError, match="essai"):
+        questions_allowed(None, past)
 
 
 def _stripe_signature(body: bytes, secret: str) -> str:
