@@ -64,6 +64,7 @@ function SettingsData() {
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
       await queryClient.invalidateQueries({ queryKey: ["overview"] });
       await queryClient.invalidateQueries({ queryKey: ["tracking"] });
+      await queryClient.invalidateQueries({ queryKey: ["audit"] });
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (error) => setMessage(error instanceof ApiError ? error.message : "Enregistrement impossible."),

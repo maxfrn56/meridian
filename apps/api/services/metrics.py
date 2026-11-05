@@ -36,6 +36,7 @@ from services.analyzer import (
     normalize_domain,
     share_of_voice,
 )
+from services.llm import redact_secrets
 from services.recommender import DomainGap, build_recommendations
 from store import StoredAudit, StoredRun, Workspace
 
@@ -137,7 +138,7 @@ def project_run(run: StoredRun, entities: list[Entity]) -> TrackingRunOut:
         cited=cited,
         position=brand_mention.position if brand_mention else None,
         sentiment=brand_mention.sentiment if brand_mention else None,
-        error=run.error,
+        error=redact_secrets(run.error) if run.error else None,
         response_text=run.response_text,
         citations=[
             CitationOut(url=item.url, domain=item.domain, title=item.title, position=item.position)

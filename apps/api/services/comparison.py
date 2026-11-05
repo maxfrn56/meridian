@@ -242,7 +242,7 @@ def _gaps(
     if external:
         gaps.append(
             CompareGap(
-                title=f"{external.domain} cite la réponse sans la marque",
+                title=f"{external.domain} est cité sans {brand.name}",
                 detail=(
                     f"Ce domaine sert de source dans {external.runs_without_brand} réponse"
                     f"{'s' if external.runs_without_brand > 1 else ''} où {brand.name} est absent. "

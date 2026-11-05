@@ -27,7 +27,12 @@ export function AuditView() {
 
 function AuditData() {
   const queryClient = useQueryClient();
-  const audit = useQuery({ queryKey: ["audit"], queryFn: () => api<AuditResponse>("/audit") });
+  const audit = useQuery({
+    queryKey: ["audit"],
+    queryFn: () => api<AuditResponse>("/audit"),
+    /* L'audit se lance tout seul à l'enregistrement du domaine : on attend son résultat deux minutes au plus. */
+    refetchInterval: (query) => (!query.state.data?.audit && query.state.dataUpdateCount < 24 ? 5000 : false),
+  });
   const run = useMutation({
     mutationFn: () => api<AuditResponse>("/audit/run", { method: "POST", body: JSON.stringify({}) }),
     onSuccess: async () => {
@@ -73,7 +78,8 @@ function AuditData() {
       {!report ? (
         <Card>
           <CardContent className="py-8 text-sm text-muted-foreground">
-            Aucun audit pour l'instant. Renseignez un domaine, puis relancez le crawl.
+            Aucun audit pour l&apos;instant. Il démarre tout seul quand le domaine est enregistré dans Réglages et
+            s&apos;affiche ici en une minute environ. Vous pouvez aussi le lancer avec « Relancer l&apos;audit ».
           </CardContent>
         </Card>
       ) : (

@@ -153,7 +153,12 @@ function FragmentRow({
         </td>
         <td className="px-4 py-3">
           {run?.status === "failed" ? (
-            <Badge tone="bad">Échec</Badge>
+            <div className="max-w-56">
+              <Badge tone="bad" title={run.error ?? undefined}>
+                Échec
+              </Badge>
+              {run.error ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{run.error}</p> : null}
+            </div>
           ) : run?.cited ? (
             <Badge tone="good">Cité</Badge>
           ) : (
@@ -163,7 +168,7 @@ function FragmentRow({
         <td className="px-4 py-3 text-muted-foreground">{run ? providerLabel(run.provider) : "—"}</td>
         <td className="px-4 py-3 tabular-nums">{run?.position ?? "—"}</td>
         <td className={cn("px-4 py-3", sentimentClass)}>{sentimentLabel}</td>
-        <td className="px-4 py-3 text-muted-foreground">{run ? run.citations.map((item) => item.domain).slice(0, 3).join(", ") || "—" : "—"}</td>
+        <td className="px-4 py-3 text-muted-foreground">{run ? sourceDomains(run).slice(0, 3).join(", ") || "—" : "—"}</td>
       </tr>
       {open && run ? (
         <tr className="border-b border-border bg-muted/40">
@@ -178,6 +183,7 @@ function FragmentRow({
                 {run.mentions.map((mention) => (
                   <li key={`${mention.entityName}-${mention.position}`}>
                     {mention.position}. {mention.entityName} · sentiment {mention.sentiment.toFixed(2)}
+                    {mention.stance ? ` · ${STANCE_LABELS[mention.stance]}` : ""}
                   </li>
                 ))}
               </ul>
@@ -198,4 +204,16 @@ function FragmentRow({
       ) : null}
     </>
   );
+}
+
+const STANCE_LABELS = {
+  recommended: "recommandée",
+  compared: "comparée",
+  mentioned: "citée en passant",
+  discouraged: "déconseillée",
+} as const;
+
+/* Un domaine cité par plusieurs pages ne compte qu'une fois dans la colonne Sources. */
+function sourceDomains(run: TrackingRun) {
+  return [...new Set(run.citations.map((item) => item.domain))];
 }
