@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 from services.auditor import crawl_site
 from services.billing import assert_quota
 from services.llm_analysis import analysis_version, analyze_runs
-from services.tracker import PROVIDERS, entities_from_workspace, execute_batch
+from services.metrics import entities_of
+from services.tracker import PROVIDERS, execute_batch
 from store import StoredAudit, StoredRun, store
 
 
@@ -32,11 +33,8 @@ async def run_tracking(
     if not workspace.brand_name:
         raise ValueError("Renseignez le nom de la marque avant de lancer un suivi.")
     assert_quota(workspace, len(queries))
-    entities = entities_from_workspace(
-        workspace.brand_name,
-        workspace.domain,
-        [(item.name, item.domain) for item in workspace.competitors],
-    )
+    # La marque, plus les concurrents déjà repérés : Claude écrira leurs noms de la même façon d'une réponse à l'autre.
+    entities = entities_of(workspace)
     jobs = [(query.id, query.prompt, provider) for query in queries for provider in selected]
     prompts = {query.id: query.prompt for query in queries}
     results = await execute_batch(jobs, entities)

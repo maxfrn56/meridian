@@ -70,7 +70,7 @@ function DashboardData() {
           <CardContent className="py-8">
             <h2 className="text-lg font-medium">L'espace est prêt, il n'y a pas encore de mesure.</h2>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Ajoutez le domaine, les concurrents et les questions. Le forfait fixe combien de questions partent chaque mois.
+              Ajoutez le domaine et les questions, ou générez-les à partir de votre site. Les concurrents seront repérés dans les réponses des moteurs.
             </p>
             <Button asChild className="mt-5">
               <Link href="/settings">Configurer l'espace</Link>

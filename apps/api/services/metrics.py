@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from config import settings
@@ -28,6 +29,7 @@ from services.analyzer import (
     citation_rate,
     Mention,
     extract_mentions,
+    fold,
     matching_entity,
     mentions_from_analysis,
     named_organisations,
@@ -39,7 +41,7 @@ from store import StoredAudit, StoredRun, Workspace
 
 METHODOLOGY = (
     "Taux de citation : part des réponses où la marque est nommée ou dont le domaine apparaît dans les sources. "
-    "Part de voix : mentions de la marque rapportées aux mentions de toutes les marques suivies, une fois par réponse. "
+    "Part de voix : mentions de la marque rapportées à celles des marques les plus citées à ses côtés, une fois par réponse. "
     "Les réponses réelles sont lues par Claude (marques nommées, rang, ton) ; à défaut, par mots-clés."
 )
 
@@ -51,9 +53,57 @@ def run_mentions(run: StoredRun, entities: list[Entity]) -> list[Mention]:
     return extract_mentions(run.response_text, entities)
 
 
+# Concurrents retenus pour la part de voix et le comparatif : les plus cités par les moteurs.
+MAX_RIVALS = 5
+
+
+@dataclass(frozen=True)
+class Rival:
+    name: str
+    domain: str
+    mentions: int
+    providers: tuple[str, ...]
+
+
+def _named_brands(run: StoredRun) -> list[tuple[str, str]]:
+    """Marques nommées dans une réponse : analyse LLM si elle existe, sinon les « Nom (domaine) » du texte."""
+    if run.analysis is not None:
+        return [(item.name, item.domain) for item in run.analysis]
+    return named_organisations(run.response_text)
+
+
+def market_rivals(workspace: Workspace) -> list[Rival]:
+    """Les concurrents ne sont pas déclarés : ce sont les marques que les moteurs nomment avec ou à la place du client.
+
+    Classées par nombre de réponses qui les nomment, toutes questions et tous moteurs confondus.
+    """
+    brand = [Entity(workspace.brand_name, workspace.domain, "brand")]
+    counts: dict[str, int] = defaultdict(int)
+    names: dict[str, str] = {}
+    domains: dict[str, str] = {}
+    providers: dict[str, set[str]] = defaultdict(set)
+    for run in _completed(workspace):
+        seen: set[str] = set()
+        for name, domain in _named_brands(run):
+            key = fold(name)
+            if not key or key in seen or matching_entity(name, domain, brand) is not None:
+                continue
+            seen.add(key)
+            counts[key] += 1
+            names.setdefault(key, name)
+            if domain and not domains.get(key):
+                domains[key] = normalize_domain(domain)
+            providers[key].add(run.provider)
+    ranked = sorted(counts, key=lambda key: (-counts[key], names[key].lower()))
+    return [
+        Rival(name=names[key], domain=domains.get(key, ""), mentions=counts[key], providers=tuple(sorted(providers[key])))
+        for key in ranked
+    ]
+
+
 def entities_of(workspace: Workspace) -> list[Entity]:
     entities = [Entity(workspace.brand_name, workspace.domain, "brand")]
-    entities.extend(Entity(item.name, item.domain, "competitor") for item in workspace.competitors)
+    entities.extend(Entity(item.name, item.domain, "competitor") for item in market_rivals(workspace)[:MAX_RIVALS])
     return entities
 
 
@@ -271,49 +321,12 @@ def build_tracking(workspace: Workspace) -> TrackingOut:
     )
 
 
-def _other_brands(run: StoredRun, entities: list[Entity]) -> list[tuple[str, str]]:
-    """Marques nommées hors marques suivies, avec leur domaine (nécessaire pour les ajouter au suivi)."""
-    if run.analysis is None:
-        return named_organisations(run.response_text)
-    return [
-        (item.name, item.domain)
-        for item in run.analysis
-        if item.domain and matching_entity(item.name, item.domain, entities) is None
-    ]
-
-
 def discovered_competitors(workspace: Workspace) -> list[DiscoveredCompetitor]:
-    """Marques citées par les moteurs et absentes de la liste déclarée."""
-    entities = entities_of(workspace)
-    known_names = {workspace.brand_name.lower()}
-    known_names.update(item.name.lower() for item in workspace.competitors)
-    known_domains = {normalize_domain(workspace.domain)}
-    known_domains.update(normalize_domain(item.domain) for item in workspace.competitors)
-    counts: dict[str, int] = defaultdict(int)
-    names: dict[str, str] = {}
-    providers: dict[str, set[str]] = defaultdict(set)
-    for run in _completed(workspace):
-        seen: set[str] = set()
-        for name, domain in _other_brands(run, entities):
-            if name.lower() in known_names or domain in known_domains:
-                continue
-            if domain in seen:
-                continue
-            seen.add(domain)
-            counts[domain] += 1
-            names[domain] = name
-            providers[domain].add(run.provider)
-    ranked = sorted(counts, key=lambda domain: counts[domain], reverse=True)
+    """Marques les plus nommées par les moteurs sur les questions du client."""
     return [
-        DiscoveredCompetitor(
-            name=names[domain],
-            domain=domain,
-            mentions=counts[domain],
-            providers=sorted(providers[domain]),
-        )
-        for domain in ranked
-        if counts[domain] >= 2
-    ][:6]
+        DiscoveredCompetitor(name=item.name, domain=item.domain, mentions=item.mentions, providers=list(item.providers))
+        for item in market_rivals(workspace)[:6]
+    ]
 
 
 def _audit_out(workspace: Workspace, audit: StoredAudit) -> AuditOut:

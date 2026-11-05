@@ -2,13 +2,14 @@
 
 import { PageHeader } from "@/components/page-header";
 import { PageFallback } from "@/components/fallback";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiError, api, saveSettings } from "@/lib/api";
-import type { Settings, SettingsInput } from "@/lib/types";
+import { ApiError, api, generateQuestions, saveSettings } from "@/lib/api";
+import type { Settings, SettingsInput, Subscription } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -17,9 +18,12 @@ const EMPTY: SettingsInput = {
   brandName: "",
   domain: "",
   sector: "",
-  competitors: [],
   queries: [],
 };
+
+const MAX_QUERIES = 60;
+/* Sans forfait, la génération suit le plus petit : 5 questions par mois. */
+const SMALLEST_PLAN = 5;
 
 export function SettingsView() {
   const [ready, setReady] = useState(false);
@@ -34,7 +38,6 @@ function toInput(settings: Settings): SettingsInput {
     brandName: settings.brandName,
     domain: settings.domain,
     sector: settings.sector,
-    competitors: settings.competitors.map(({ name, domain }) => ({ name, domain })),
     queries: settings.queries.map(({ prompt, active }) => ({ prompt, active })),
   };
 }
@@ -43,7 +46,10 @@ function SettingsData() {
   const queryClient = useQueryClient();
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("/settings") });
   const [form, setForm] = useState<SettingsInput>(EMPTY);
+  const billing = useQuery({ queryKey: ["billing"], queryFn: () => api<Subscription>("/billing") });
   const [message, setMessage] = useState<string | null>(null);
+  /* Questions proposées par l'IA et pas encore enregistrées. */
+  const [proposed, setProposed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (settings.data) setForm(toInput(settings.data));
@@ -53,6 +59,7 @@ function SettingsData() {
     mutationFn: () => saveSettings(form),
     onSuccess: async (data) => {
       setForm(toInput(data));
+      setProposed(new Set());
       setMessage("Réglages enregistrés.");
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
       await queryClient.invalidateQueries({ queryKey: ["overview"] });
@@ -60,6 +67,28 @@ function SettingsData() {
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (error) => setMessage(error instanceof ApiError ? error.message : "Enregistrement impossible."),
+  });
+
+  const filled = form.queries.filter((query) => query.prompt.trim());
+  const allowance = Math.min(billing.data?.plan?.questionsPerMonth ?? SMALLEST_PLAN, MAX_QUERIES);
+  const toGenerate = Math.max(0, allowance - filled.length);
+
+  const generate = useMutation({
+    mutationFn: () =>
+      generateQuestions({
+        brandName: form.brandName,
+        domain: form.domain,
+        sector: form.sector,
+        existing: filled.map((query) => query.prompt),
+      }),
+    onSuccess: ({ questions }) => {
+      setForm({ ...form, queries: [...filled, ...questions.map((prompt) => ({ prompt, active: true }))] });
+      setProposed(new Set([...proposed, ...questions]));
+      setMessage(
+        `${questions.length} questions proposées. Relisez-les, retirez celles qui ne correspondent pas à vos clients, puis enregistrez.`,
+      );
+    },
+    onError: (error) => setMessage(error instanceof ApiError ? error.message : "Génération impossible."),
   });
 
   if (settings.isPending) return <PageFallback />;
@@ -74,8 +103,8 @@ function SettingsData() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        title="Marque, concurrents, requêtes"
-        description="Cinq concurrents et soixante questions au maximum. Le forfait décide combien peuvent être envoyées chaque mois."
+        title="Marque et questions"
+        description="Les questions sont posées telles quelles aux moteurs. Vos concurrents ne se déclarent pas : ce sont les marques que les moteurs citent dans leurs réponses."
         action={
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? "Enregistrement…" : "Enregistrer"}
@@ -83,74 +112,65 @@ function SettingsData() {
         }
       />
       {message ? <p className="mb-4 text-sm text-muted-foreground">{message}</p> : null}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Marque</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <Field label="Espace" value={form.workspaceName} onChange={(workspaceName) => setForm({ ...form, workspaceName })} />
-            <Field label="Nom de marque" value={form.brandName} onChange={(brandName) => setForm({ ...form, brandName })} />
-            <Field label="Domaine" value={form.domain} onChange={(domain) => setForm({ ...form, domain })} placeholder="northwind.io" />
-            <Field label="Secteur" value={form.sector} onChange={(sector) => setForm({ ...form, sector })} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Concurrents ({form.competitors.length}/5)</CardTitle>
+      <Card>
+        <CardHeader>
+          <CardTitle>Marque</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
+          <Field label="Espace" value={form.workspaceName} onChange={(workspaceName) => setForm({ ...form, workspaceName })} />
+          <Field label="Nom de marque" value={form.brandName} onChange={(brandName) => setForm({ ...form, brandName })} />
+          <Field label="Domaine" value={form.domain} onChange={(domain) => setForm({ ...form, domain })} placeholder="northwind.io" />
+          <Field label="Secteur" value={form.sector} onChange={(sector) => setForm({ ...form, sector })} />
+        </CardContent>
+      </Card>
+      <Card className="mt-4">
+        <CardHeader>
+          <div>
+            <CardTitle>
+              Questions ({form.queries.length}/{MAX_QUERIES})
+            </CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Votre forfait envoie {allowance} questions par mois.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               size="sm"
-              disabled={form.competitors.length >= 5}
-              onClick={() => setForm({ ...form, competitors: [...form.competitors, { name: "", domain: "" }] })}
+              disabled={generate.isPending || toGenerate === 0 || !form.brandName.trim() || !form.domain.trim()}
+              title={toGenerate === 0 ? "Votre liste couvre déjà votre forfait." : undefined}
+              onClick={() => generate.mutate()}
+            >
+              {generate.isPending ? "Génération…" : `Générer ${toGenerate} questions`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={form.queries.length >= MAX_QUERIES}
+              onClick={() => setForm({ ...form, queries: [...form.queries, { prompt: "", active: true }] })}
             >
               Ajouter
             </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {form.competitors.map((competitor, index) => (
-              <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
-                <Input
-                  aria-label="Nom du concurrent"
-                  value={competitor.name}
-                  placeholder="Nom"
-                  onChange={(event) => updateCompetitor(index, { name: event.target.value })}
-                />
-                <Input
-                  aria-label="Domaine du concurrent"
-                  value={competitor.domain}
-                  placeholder="domaine.com"
-                  onChange={(event) => updateCompetitor(index, { domain: event.target.value })}
-                />
-                <Button variant="ghost" onClick={() => removeCompetitor(index)}>
-                  Retirer
-                </Button>
-              </div>
-            ))}
-            {form.competitors.length === 0 ? <p className="text-sm text-muted-foreground">Aucun concurrent.</p> : null}
-          </CardContent>
-        </Card>
-      </div>
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Questions ({form.queries.length}/60)</CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={form.queries.length >= 60}
-            onClick={() => setForm({ ...form, queries: [...form.queries, { prompt: "", active: true }] })}
-          >
-            Ajouter
-          </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {form.queries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucune question. Générez-en à partir de votre site, ou ajoutez les vôtres.
+            </p>
+          ) : null}
           {form.queries.map((query, index) => (
             <div key={index} className="grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-start">
-              <Textarea
-                aria-label="Requête cible"
-                value={query.prompt}
-                onChange={(event) => updateQuery(index, { prompt: event.target.value })}
-              />
+              <div className="grid gap-1.5">
+                <Textarea
+                  aria-label="Requête cible"
+                  value={query.prompt}
+                  onChange={(event) => updateQuery(index, { prompt: event.target.value })}
+                />
+                {proposed.has(query.prompt) ? (
+                  <Badge className="w-fit">Proposée par l&apos;IA, pas encore enregistrée</Badge>
+                ) : null}
+              </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
@@ -168,17 +188,6 @@ function SettingsData() {
       </Card>
     </div>
   );
-
-  function updateCompetitor(index: number, patch: Partial<SettingsInput["competitors"][number]>) {
-    setForm({
-      ...form,
-      competitors: form.competitors.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
-    });
-  }
-
-  function removeCompetitor(index: number) {
-    setForm({ ...form, competitors: form.competitors.filter((_, itemIndex) => itemIndex !== index) });
-  }
 
   function updateQuery(index: number, patch: Partial<SettingsInput["queries"][number]>) {
     setForm({

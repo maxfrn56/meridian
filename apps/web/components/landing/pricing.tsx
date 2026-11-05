@@ -9,7 +9,7 @@ const PLANS = [
     price: "149 €",
     period: "HT / mois",
     questions: "50 questions suivies",
-    features: ["3 concurrents suivis", "1 audit de site par mois", "2 utilisateurs", "Rapport mensuel en PDF"],
+    features: ["Concurrents repérés dans les réponses", "1 audit de site par mois", "2 utilisateurs", "Rapport mensuel en PDF"],
     cta: "Lancer l'audit gratuit",
     featured: false,
   },
@@ -20,7 +20,7 @@ const PLANS = [
     period: "HT / mois",
     questions: "200 questions suivies",
     features: [
-      "5 concurrents suivis",
+      "Concurrents repérés dans les réponses",
       "Audit de site chaque semaine",
       "5 utilisateurs",
       "Sources citées et actions priorisées",
@@ -36,7 +36,7 @@ const PLANS = [
     period: "",
     questions: "À partir de 1 000 questions",
     features: [
-      "Concurrents et audits illimités",
+      "Audits illimités",
       "Plusieurs marques et langues",
       "Accès API et exports",
       "Accompagnement dédié",

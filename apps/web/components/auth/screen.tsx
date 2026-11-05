@@ -26,7 +26,7 @@ export function AuthFrame({
           id="auth"
           className="pointer-events-none absolute top-[58%] left-1/2 -z-10 w-[130%] -translate-x-1/2 text-[#dcdfe5]"
         />
-        <Link href="/" className="flex w-fit items-center gap-2 text-lg font-semibold tracking-[-0.02em]">
+        <Link href="/" className="logo-turn flex w-fit items-center gap-2 text-lg font-semibold tracking-[-0.02em]">
           <LogoMark className="size-[22px]" />
           Meridian
         </Link>
@@ -41,7 +41,7 @@ export function AuthFrame({
         <p className="text-sm text-muted-foreground">Analyse quotidienne sur ChatGPT, Perplexity et Gemini</p>
       </section>
       <section className="flex flex-col items-center justify-center px-6 py-16">
-        <Link href="/" className="mb-10 flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] lg:hidden">
+        <Link href="/" className="logo-turn mb-10 flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] lg:hidden">
           <LogoMark className="size-[22px]" />
           Meridian
         </Link>

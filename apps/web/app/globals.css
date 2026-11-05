@@ -112,6 +112,37 @@ select {
   color: var(--foreground);
 }
 
+/*
+ * Logo dans l'application : au survol du lien qui le porte, le méridien fait un demi-tour,
+ * comme sur la landing (.lp-logo__meridian dans landing.css). Rien si le mouvement est réduit.
+ */
+.logo-turn .lp-logo__meridian {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes logo-turn {
+  0% {
+    transform: scaleX(1);
+  }
+  34% {
+    transform: scaleX(2.09);
+  }
+  84% {
+    transform: scaleX(0.02);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .logo-turn:hover .lp-logo__meridian,
+  .logo-turn:focus-visible .lp-logo__meridian {
+    animation: logo-turn 1200ms var(--ease-in-out);
+  }
+}
+
 @media print {
   aside,
   .no-print {

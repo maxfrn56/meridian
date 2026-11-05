@@ -10,11 +10,8 @@ from services.simulator import Source
 PROVIDERS = ("openai", "perplexity", "gemini")
 
 
-def entities_from_workspace(brand_name: str, domain: str, competitors: list[tuple[str, str]]) -> list[Entity]:
-    entities = [Entity(name=brand_name, domain=domain, kind="brand")]
-    for name, competitor_domain in competitors:
-        entities.append(Entity(name=name, domain=competitor_domain, kind="competitor"))
-    return entities
+def entities_from_workspace(brand_name: str, domain: str) -> list[Entity]:
+    return [Entity(name=brand_name, domain=domain, kind="brand")]
 
 
 def citations_from_sources(sources: list[Source]) -> list[Citation]:

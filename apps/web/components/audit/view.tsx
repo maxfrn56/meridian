@@ -5,9 +5,9 @@ import { PageFallback } from "@/components/fallback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api, saveSettings } from "@/lib/api";
+import { api } from "@/lib/api";
 import { categoryLabel, dateTimeLabel, effortLabel, providerLabel, weekLabel } from "@/lib/format";
-import type { Audit, AuditResponse, DiscoveredCompetitor, Provider, Recommendation, Settings } from "@/lib/types";
+import type { Audit, AuditResponse, DiscoveredCompetitor, Provider, Recommendation } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -146,69 +146,33 @@ function AuditData() {
 }
 
 function DiscoveredCard({ items }: { items: DiscoveredCompetitor[] }) {
-  const queryClient = useQueryClient();
-  const settings = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("/settings") });
-  const [notice, setNotice] = useState<string | null>(null);
-  const add = useMutation({
-    mutationFn: async (item: DiscoveredCompetitor) => {
-      if (!settings.data) throw new Error("Les réglages ne sont pas encore chargés.");
-      const current = settings.data;
-      if (current.competitors.some((competitor) => competitor.domain === item.domain)) return current;
-      if (current.competitors.length >= 5) throw new Error("La liste est pleine : 5 concurrents maximum. Retirez-en un dans Réglages.");
-      return saveSettings({
-        workspaceName: current.workspaceName,
-        brandName: current.brandName,
-        domain: current.domain,
-        sector: current.sector,
-        competitors: [...current.competitors.map(({ name, domain }) => ({ name, domain })), { name: item.name, domain: item.domain }],
-        queries: current.queries.map(({ prompt, active }) => ({ prompt, active })),
-      });
-    },
-    onSuccess: async (_data, item) => {
-      setNotice(`${item.name} est ajouté à vos concurrents. Le prochain suivi le comptera dans votre part de voix.`);
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
-      await queryClient.invalidateQueries({ queryKey: ["audit"] });
-      await queryClient.invalidateQueries({ queryKey: ["overview"] });
-    },
-  });
-
   if (items.length === 0) return null;
-  const known = new Set(settings.data?.competitors.map((competitor) => competitor.domain) ?? []);
-  const full = (settings.data?.competitors.length ?? 0) >= 5;
-
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle>Marques citées auxquelles vous n'aviez pas pensé</CardTitle>
+        <CardTitle>Concurrents repérés dans les réponses</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm leading-6 text-muted-foreground">
-          Vous avez indiqué vos concurrents connus. Les réponses des moteurs en citent d'autres, sur les mêmes questions.
-          Ajoutez-les pour mesurer votre place face à eux.
+          Les marques que les moteurs nomment le plus sur vos questions. Les cinq premières servent de référence pour la part
+          de voix et le comparatif.
         </p>
-        {items.map((item) => {
-          const tracked = known.has(item.domain);
-          return (
-            <div key={item.domain} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
-              <div>
-                <p className="text-sm font-medium">{item.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {item.domain} · cité dans {item.mentions} réponses · {item.providers.map((provider) => providerLabel(provider as Provider)).join(", ")}
-                </p>
-              </div>
-              {tracked ? (
-                <Badge tone="good">Déjà suivi</Badge>
-              ) : (
-                <Button variant="outline" disabled={add.isPending || full || !settings.data} onClick={() => add.mutate(item)}>
-                  Ajouter aux concurrents
-                </Button>
-              )}
+        {items.map((item) => (
+          <div key={item.name} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">{item.name}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {[
+                  item.domain,
+                  `citée dans ${item.mentions} réponse${item.mentions > 1 ? "s" : ""}`,
+                  item.providers.map((provider) => providerLabel(provider as Provider)).join(", "),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
             </div>
-          );
-        })}
-        {full ? <p className="text-sm text-muted-foreground">Cinq concurrents sont déjà suivis. Retirez-en un dans Réglages pour en ajouter un nouveau.</p> : null}
-        {notice ? <p className="text-sm text-foreground">{notice}</p> : null}
-        {add.error ? <p className="text-sm font-semibold text-destructive">{add.error.message}</p> : null}
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -281,9 +245,9 @@ function downloadChecklist(report: Audit, discovered: DiscoveredCompetitor[]) {
     `Score : ${report.score}/100`,
     `Titres ${report.headingScore} · JSON-LD ${report.schemaScore} · Faits ${report.factualScore} · Robots ${report.crawlerScore}`,
     ``,
-    `## Marques citées non déclarées`,
+    `## Concurrents repérés dans les réponses`,
     ...(discovered.length
-      ? discovered.map((item) => `- ${item.name} (${item.domain}) — ${item.mentions} réponses`)
+      ? discovered.map((item) => `- ${item.name}${item.domain ? ` (${item.domain})` : ""} — ${item.mentions} réponses`)
       : ["- Aucune"]),
     ``,
     `## Checklist`,
