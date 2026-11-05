@@ -8,6 +8,8 @@ async function proxy(request: NextRequest, path: string[]) {
   if (authorization) headers.set("authorization", authorization);
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
+  const stripeSignature = request.headers.get("stripe-signature");
+  if (stripeSignature) headers.set("stripe-signature", stripeSignature);
   const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.text();
 
   try {

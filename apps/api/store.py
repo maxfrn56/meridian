@@ -448,6 +448,45 @@ class Store:
             session.flush()
             return self._load(session, row)
 
+    def stripe_customer_id(self, workspace_id: str) -> str | None:
+        with self._session() as session:
+            row = session.get(WorkspaceRow, workspace_id)
+            if row is None:
+                return None
+            return row.stripe_customer_id or None
+
+    def apply_paid_plan(
+        self,
+        workspace_id: str,
+        plan_id: str,
+        customer_id: str,
+        subscription_id: str,
+    ) -> str | None:
+        """Active le forfait payé. Retourne l'abonnement précédent à résilier, ou None si l'espace n'existe pas."""
+        with self._session() as session, session.begin():
+            row = session.get(WorkspaceRow, workspace_id)
+            if row is None:
+                return None
+            previous = row.stripe_subscription_id or ""
+            self._roll_period(row)
+            row.plan_id = plan_id
+            if customer_id:
+                row.stripe_customer_id = customer_id
+            if subscription_id:
+                row.stripe_subscription_id = subscription_id
+            session.flush()
+            if previous and previous != subscription_id:
+                return previous
+            return ""
+
+    def clear_paid_plan(self, workspace_id: str) -> None:
+        with self._session() as session, session.begin():
+            row = session.get(WorkspaceRow, workspace_id)
+            if row is None:
+                return
+            row.plan_id = None
+            row.stripe_subscription_id = None
+
     def consume_questions(self, user_id: str, count: int) -> None:
         with self._session() as session, session.begin():
             row = self._workspace_row(session, user_id)

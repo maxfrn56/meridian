@@ -1,6 +1,9 @@
+import hashlib
+import hmac
 import json
 import os
 import re
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +20,14 @@ def client():
     previous = settings.mock_llm
     previous_resend = os.environ.pop("RESEND_API_KEY", None)
     previous_admins = os.environ.pop("ADMIN_ACCOUNTS", None)
+    stripe_names = (
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "STRIPE_PRICE_ESSENTIEL",
+        "STRIPE_PRICE_CROISSANCE",
+        "STRIPE_PRICE_REFERENCE",
+    )
+    previous_stripe = {name: os.environ.pop(name, None) for name in stripe_names}
     os.environ["MAIL_CAPTURE"] = "true"
     object.__setattr__(settings, "mock_llm", "true")
     store.reset()
@@ -32,6 +43,11 @@ def client():
             os.environ["RESEND_API_KEY"] = previous_resend
         if previous_admins is not None:
             os.environ["ADMIN_ACCOUNTS"] = previous_admins
+        for name, value in previous_stripe.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
         OUTBOX.clear()
 
 
@@ -106,6 +122,87 @@ def test_subscription_limits_questions_sent_this_month(client: TestClient):
     assert "Essentiel" in blocked.json()["detail"]
     after = client.get("/api/v1/billing", headers=headers).json()
     assert after["questionsUsed"] == 0
+
+
+def _stripe_signature(body: bytes, secret: str) -> str:
+    stamp = str(int(time.time()))
+    digest = hmac.new(secret.encode(), f"{stamp}.".encode() + body, hashlib.sha256).hexdigest()
+    return f"t={stamp},v1={digest}"
+
+
+def test_stripe_checkout_opens_test_session_and_webhook_activates_plan(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    os.environ["STRIPE_SECRET_KEY"] = "sk_test_fake"
+    os.environ["STRIPE_WEBHOOK_SECRET"] = "whsec_test"
+    os.environ["STRIPE_PRICE_ESSENTIEL"] = "price_essentiel"
+    captured: dict[str, object] = {}
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"url": "https://checkout.stripe.com/c/pay/cs_test_abc"}
+
+    def fake_post(url, headers=None, data=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["data"] = data
+        return Response()
+
+    monkeypatch.setattr("services.payments.httpx.post", fake_post)
+    token = _token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    blocked = client.post("/api/v1/billing", headers=headers, json={"planId": "essentiel"})
+    assert blocked.status_code == 409
+    opened = client.post("/api/v1/billing/checkout", headers=headers, json={"planId": "essentiel"})
+    assert opened.status_code == 200
+    assert opened.json()["url"] == "https://checkout.stripe.com/c/pay/cs_test_abc"
+    assert captured["headers"]["Authorization"] == "Bearer sk_test_fake"
+    assert captured["data"]["line_items[0][price]"] == "price_essentiel"
+    assert captured["data"]["mode"] == "subscription"
+
+    user = store.user_by_email(DEMO_EMAIL)
+    workspace = store.workspace_for(user.id)
+    event = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "mode": "subscription",
+                "status": "complete",
+                "payment_status": "paid",
+                "customer": "cus_test",
+                "subscription": "sub_test",
+                "metadata": {"workspace_id": workspace.id, "plan_id": "essentiel"},
+            }
+        },
+    }
+    body = json.dumps(event).encode()
+    refused = client.post(
+        "/api/v1/billing/webhook",
+        content=body,
+        headers={"Stripe-Signature": "t=1,v1=dead", "Content-Type": "application/json"},
+    )
+    assert refused.status_code == 400
+    accepted = client.post(
+        "/api/v1/billing/webhook",
+        content=body,
+        headers={"Stripe-Signature": _stripe_signature(body, "whsec_test"), "Content-Type": "application/json"},
+    )
+    assert accepted.status_code == 200
+    billing = client.get("/api/v1/billing", headers=headers).json()
+    assert billing["plan"]["id"] == "essentiel"
+
+    ended = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"metadata": {"workspace_id": workspace.id}}},
+    }
+    ended_body = json.dumps(ended).encode()
+    cleared = client.post(
+        "/api/v1/billing/webhook",
+        content=ended_body,
+        headers={"Stripe-Signature": _stripe_signature(ended_body, "whsec_test"), "Content-Type": "application/json"},
+    )
+    assert cleared.status_code == 200
+    assert client.get("/api/v1/billing", headers=headers).json()["plan"] is None
 
 
 def test_settings_no_longer_carry_competitors(client: TestClient):

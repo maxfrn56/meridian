@@ -23,13 +23,28 @@ export function BillingView() {
     enabled: ready,
   });
   const choose = useMutation({
-    mutationFn: (planId: string) => api<Subscription>("/billing", { method: "POST", body: JSON.stringify({ planId }) }),
-    onSuccess: async (next) => {
-      queryClient.setQueryData(["billing"], next);
-      setMessage(`Le forfait ${next.plan?.name} est actif pour ce mois.`);
+    mutationFn: (planId: string) => api<{ url: string }>("/billing/checkout", { method: "POST", body: JSON.stringify({ planId }) }),
+    onSuccess: (next) => {
+      window.location.assign(next.url);
     },
     onError: (error: Error) => setMessage(error.message),
   });
+  useEffect(() => {
+    const checkout = new URLSearchParams(window.location.search).get("checkout");
+    if (checkout === "cancel") {
+      setMessage("Paiement annulé. Le forfait n'a pas changé.");
+      return;
+    }
+    if (checkout !== "success") return;
+    setMessage("Paiement reçu. Le forfait s'active dès que Stripe le confirme.");
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      void queryClient.invalidateQueries({ queryKey: ["billing"] });
+      if (tries >= 5) window.clearInterval(timer);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [queryClient]);
   if (!ready || billing.isPending) return <PageFallback />;
   if (billing.error || !billing.data) {
     return (
@@ -81,7 +96,7 @@ export function BillingView() {
                 <p className="mt-3 text-sm font-medium">{plan.questionsPerMonth} questions par mois</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{plan.detail}</p>
                 <Button className="mt-5 w-full" variant="outline" disabled={current || choose.isPending} onClick={() => choose.mutate(plan.id)}>
-                  {current ? "Forfait en cours" : "Activer ce forfait"}
+                  {current ? "Forfait en cours" : choose.isPending && choose.variables === plan.id ? "Ouverture de Stripe…" : "Payer ce forfait"}
                 </Button>
               </CardContent>
             </Card>
@@ -90,7 +105,7 @@ export function BillingView() {
       </div>
       {message ? <p className="mt-4 text-sm text-muted-foreground">{message}</p> : null}
       <p className="mt-4 text-xs leading-5 text-muted-foreground">
-        L'activation enregistre le forfait sur cet espace. Le paiement bancaire n'est pas encore branché : aucun prélèvement n'est fait.
+        Le paiement s'ouvre sur Stripe. Le forfait s'active une fois le paiement confirmé.
       </p>
     </div>
   );

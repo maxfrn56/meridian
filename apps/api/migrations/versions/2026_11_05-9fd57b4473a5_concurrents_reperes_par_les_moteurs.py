@@ -3,7 +3,7 @@
 Les concurrents sont désormais les marques que les moteurs nomment dans les réponses (services.metrics).
 
 Revision ID: 9fd57b4473a5
-Revises: 2967476eea38
+Revises: b8e4d1a06c53
 Create Date: 2026-11-05 12:17:27.646242
 
 """
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '9fd57b4473a5'
-down_revision: Union[str, Sequence[str], None] = '2967476eea38'
+down_revision: Union[str, Sequence[str], None] = "b8e4d1a06c53"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
