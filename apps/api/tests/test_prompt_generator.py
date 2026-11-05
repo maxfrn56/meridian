@@ -24,6 +24,16 @@ class FakeClient:
         self.messages = FakeMessages(questions)
 
 
+def test_questions_stay_on_the_city_when_one_is_known():
+    raw = [
+        "Quel logiciel de suivi choisir ?",
+        "Quel logiciel de suivi choisir à Lyon ?",
+        "Comment ChatGPT aide une entreprise à Lyon ?",
+    ]
+    kept = clean_questions(raw, "Atelier", "atelier.fr", [], 5, "Logiciel · France, Lyon, plusieurs pays")
+    assert kept == ["Quel logiciel de suivi choisir à Lyon ?"]
+
+
 def test_budget_follows_the_plan():
     assert question_budget("essentiel", 0) == 5
     assert question_budget("croissance", 12) == 8

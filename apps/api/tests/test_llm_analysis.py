@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import anthropic
-import httpx2
+import httpx as httpx2
 
 import services.orchestrator
-from services.analyzer import AnalyzedMention, Entity, mentions_from_analysis
-from services.metrics import market_rivals
+from services.analyzer import AnalyzedMention, Citation, Entity, is_generic_platform, mentions_from_analysis
+from services.metrics import domain_gaps, market_rivals
 from services.llm_analysis import BrandMention, ResponseAnalysis, analyze_response, analyze_runs, clean_analysis
 from seed import DEMO_EMAIL
-from store import store
+from store import StoredRun, Workspace, store
 from tests.test_api import _token, client  # noqa: F401  (fixture)
 
 BRAND = Entity("Northwind", "northwind.io", "brand")
@@ -144,9 +144,44 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
     }
 
     stored = store.workspace_for(store.user_by_email(DEMO_EMAIL).id).runs[-1]
-    assert stored.analysis_version.endswith("/v1")
+    assert stored.analysis_version.endswith("/v2")
     assert [item.name for item in stored.analysis] == ["Lumenboard", "Northwind", "Datadash"]
 
     workspace = store.workspace_for(store.user_by_email(DEMO_EMAIL).id)
     datadash = next(item for item in market_rivals(workspace) if item.name == "Datadash")
     assert (datadash.domain, datadash.mentions, datadash.providers) == ("datadash.com", 2, ("openai",))
+
+
+def test_assistants_and_general_sites_are_not_rivals_or_sources():
+    assert is_generic_platform("ChatGPT")
+    assert is_generic_platform("OpenAI", "openai.com")
+    assert not is_generic_platform("Lumenboard", "lumenboard.com")
+    now = datetime.now(timezone.utc)
+    run = StoredRun(
+        id="r",
+        query_id="q",
+        query_prompt="Quel logiciel à Lyon ?",
+        provider="openai",
+        model="gpt-4o",
+        status="completed",
+        source="live",
+        response_text="ChatGPT et Lumenboard.",
+        citations=[
+            Citation("https://openai.com/x", "openai.com", None, 1),
+            Citation("https://fr.wikipedia.org/wiki/X", "fr.wikipedia.org", None, 2),
+            Citation("https://lumenboard.com/blog", "lumenboard.com", None, 3),
+            Citation("https://journal-lyon.fr/logiciel", "journal-lyon.fr", None, 4),
+        ],
+        error=None,
+        created_at=now,
+        analysis=[
+            AnalyzedMention("ChatGPT", "openai.com", 1, "mentioned", 0, "ChatGPT"),
+            AnalyzedMention("Lumenboard", "lumenboard.com", 2, "recommended", 0.4, "Lumenboard"),
+        ],
+    )
+    workspace = Workspace(
+        id="w", user_id="u", name="Atelier", brand_name="Atelier", domain="atelier.fr", sector="Logiciel", runs=[run]
+    )
+    assert [item.name for item in market_rivals(workspace)] == ["Lumenboard"]
+    domains = [item.domain for item in domain_gaps(workspace)]
+    assert domains == ["journal-lyon.fr"]

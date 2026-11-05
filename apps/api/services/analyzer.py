@@ -173,6 +173,72 @@ def fold(value: str) -> str:
     return " ".join("".join(char for char in decomposed if not unicodedata.combining(char)).casefold().split())
 
 
+# Assistants qui répondent, et plateformes citées comme source générale : pas des concurrents du client.
+_GENERIC_NAMES = {
+    "chatgpt",
+    "chat gpt",
+    "openai",
+    "gpt4",
+    "gpt4o",
+    "gpt-4",
+    "gpt-4o",
+    "perplexity",
+    "gemini",
+    "google gemini",
+    "bard",
+    "claude",
+    "anthropic",
+    "copilot",
+    "microsoft copilot",
+    "meta ai",
+    "google",
+    "bing",
+    "wikipedia",
+    "wikipédia",
+    "youtube",
+    "linkedin",
+    "facebook",
+    "instagram",
+    "twitter",
+    "reddit",
+    "tiktok",
+}
+_GENERIC_DOMAINS = {
+    "openai.com",
+    "chatgpt.com",
+    "perplexity.ai",
+    "gemini.google.com",
+    "bard.google.com",
+    "anthropic.com",
+    "claude.ai",
+    "wikipedia.org",
+    "wikimedia.org",
+    "youtube.com",
+    "youtu.be",
+    "linkedin.com",
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "reddit.com",
+    "tiktok.com",
+    "google.com",
+    "bing.com",
+}
+
+
+def is_generic_platform(name: str, domain: str = "") -> bool:
+    """Vrai pour un assistant ou un site général, qui n'est pas un concurrent métier."""
+    compact = fold(name).replace("-", "").replace(" ", "")
+    spaced = fold(name)
+    if spaced in _GENERIC_NAMES or compact in {item.replace("-", "").replace(" ", "") for item in _GENERIC_NAMES}:
+        return True
+    host = normalize_domain(domain)
+    if host.startswith("www."):
+        host = host[4:]
+    return any(host == item or host.endswith(f".{item}") for item in _GENERIC_DOMAINS if host)
+
+
 def locate(excerpt: str, text: str) -> int | None:
     """Position de l'extrait dans la réponse, None s'il n'y figure pas.
 

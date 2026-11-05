@@ -30,6 +30,7 @@ from services.analyzer import (
     Mention,
     extract_mentions,
     fold,
+    is_generic_platform,
     matching_entity,
     mentions_from_analysis,
     named_organisations,
@@ -88,6 +89,8 @@ def market_rivals(workspace: Workspace) -> list[Rival]:
         for name, domain in _named_brands(run):
             key = fold(name)
             if not key or key in seen or matching_entity(name, domain, brand) is not None:
+                continue
+            if is_generic_platform(name, domain):
                 continue
             seen.add(key)
             counts[key] += 1
@@ -189,7 +192,7 @@ def domain_gaps(workspace: Workspace) -> list[DomainGap]:
         cited = brand_is_cited(mentions, run.citations, brand)
         seen: set[str] = set()
         for citation in run.citations:
-            if _is_tracked(citation.domain, tracked) or citation.domain in seen:
+            if _is_tracked(citation.domain, tracked) or citation.domain in seen or is_generic_platform("", citation.domain):
                 continue
             seen.add(citation.domain)
             citations[citation.domain] += 1

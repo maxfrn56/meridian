@@ -21,6 +21,7 @@ from services.analyzer import (
     Citation,
     Entity,
     fold,
+    is_generic_platform,
     locate,
     matching_entity,
     normalize_domain,
@@ -29,13 +30,13 @@ from services.analyzer import (
 logger = logging.getLogger(__name__)
 
 # À incrémenter à chaque changement du prompt : les analyses gardent la version qui les a produites.
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 MAX_EXCERPT = 300
 CONCURRENCY = 4
 
 SYSTEM_PROMPT = """Tu analyses la réponse d'un assistant IA (ChatGPT, Perplexity, Gemini…) à la question d'un acheteur, pour mesurer la visibilité des marques.
 
-Relève chaque marque, entreprise, produit ou service nommé dans la réponse, qu'il fasse partie des marques suivies ou non. N'en relève pas : les médias, annuaires ou sites cités seulement comme source d'information, les noms génériques (« un CRM »), les personnes.
+Relève chaque marque, entreprise, produit ou service nommé dans la réponse, qu'il fasse partie des marques suivies ou non. N'en relève pas : les médias, annuaires ou sites cités seulement comme source d'information, les noms génériques (« un CRM »), les personnes, les assistants qui répondent (ChatGPT, OpenAI, Perplexity, Gemini, Claude, Copilot) ni les plateformes générales (Google, Wikipédia, YouTube, LinkedIn, réseaux sociaux).
 
 Pour chaque marque :
 - name : son nom tel qu'écrit dans la réponse. Si c'est l'une des marques suivies, même écrite autrement (accents, faute, nom de domaine seul, nom d'un de ses produits), reprends exactement le nom suivi.
@@ -97,6 +98,8 @@ def clean_analysis(parsed: ResponseAnalysis, text: str, entities: list[Entity]) 
             logger.info("Mention écartée, extrait introuvable : %s", name)
             continue
         entity = matching_entity(name, item.domain, entities)
+        if entity is None and is_generic_platform(name, item.domain):
+            continue
         if entity is not None:
             name = entity.name
         key = fold(name)

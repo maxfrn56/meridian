@@ -29,8 +29,11 @@ SYSTEM_PROMPT = """Tu prépares les questions qu'un service de suivi va poser à
 
 Écris des questions que de vrais acheteurs ou prospects poseraient à un assistant IA quand ils cherchent ce que l'entreprise vend :
 - jamais le nom de l'entreprise ni son domaine : on mesure si l'IA la cite d'elle-même ;
-- variées : recherche d'un prestataire ou d'un outil, comparaison d'options, problème à résoudre, critère précis (budget, taille d'entreprise, secteur, zone géographique), cas d'usage ;
-- concrètes et naturelles, comme tapées dans ChatGPT, une phrase ou deux, 200 caractères au plus ;
+- uniquement son offre réelle, avec le vocabulaire du site : pas un métier voisin, pas les assistants eux-mêmes (ChatGPT, Perplexity, Gemini, Claude) ;
+- si une ville est indiquée, chaque question la nomme comme un client local (« à Lyon », « autour de Lyon ») ;
+- si seul un pays est indiqué, chaque question le nomme ;
+- variées sur cette offre et cette zone : recherche d'un prestataire, comparaison, problème à résoudre, critère précis ;
+- concrètes et naturelles, une phrase ou deux, 200 caractères au plus ;
 - toutes différentes entre elles et différentes des questions déjà suivies.
 
 Écris dans la langue des questions déjà suivies ; s'il n'y en a pas, dans la langue du site ; à défaut, en français.
@@ -88,11 +91,35 @@ async def site_summary(domain: str) -> str:
     return "\n".join(parts)
 
 
+def _activity_and_places(sector: str) -> tuple[str, list[str]]:
+    """Sépare « offre · pays, ville » en offre et en lieux à nommer dans les questions."""
+    activity, _, place = sector.partition(" · ")
+    ignored = {"france", "belgique", "suisse", "canada", "plusieurs pays"}
+    cities = []
+    countries = []
+    for part in place.split(","):
+        token = " ".join(part.split())
+        folded = fold(token)
+        if not folded:
+            continue
+        if folded in ignored or folded == "plusieurs pays":
+            if folded in {"france", "belgique", "suisse", "canada"}:
+                countries.append(folded)
+            continue
+        if len(token) >= 3:
+            cities.append(folded)
+    return activity.strip() or sector.strip(), cities or countries
+
+
 def build_user_message(brand_name: str, domain: str, sector: str, existing: list[str], count: int, site: str) -> str:
     current = "\n".join(f"- {item}" for item in existing) or "- aucune"
+    activity, places = _activity_and_places(sector)
+    zone = ", ".join(places) if places else "non précisée"
     return (
         f"Entreprise : {brand_name}\n"
         f"Domaine : {domain}\n"
+        f"Offre à mesurer, et seulement celle-là : {activity or 'non précisée'}\n"
+        f"Zone à nommer dans chaque question : {zone}\n"
         f"Secteur indiqué : {sector or 'non précisé'}\n\n"
         f"Questions déjà suivies :\n{current}\n\n"
         f"<site>\n{site or 'Site indisponible.'}\n</site>\n\n"
@@ -100,7 +127,14 @@ def build_user_message(brand_name: str, domain: str, sector: str, existing: list
     )
 
 
-def clean_questions(raw: list[str], brand_name: str, domain: str, existing: list[str], count: int) -> list[str]:
+def clean_questions(
+    raw: list[str],
+    brand_name: str,
+    domain: str,
+    existing: list[str],
+    count: int,
+    sector: str = "",
+) -> list[str]:
     """Écarte les questions qui nomment la marque, les doublons et celles hors des limites d'une requête."""
     banned = [fold(brand_name)]
     host = normalize_domain(domain)
@@ -117,11 +151,16 @@ def clean_questions(raw: list[str], brand_name: str, domain: str, existing: list
             continue
         if any(word in key for word in banned):
             continue
+        if any(token in key for token in ("chatgpt", "perplexity", "gemini", "claude")):
+            continue
         seen.add(key)
         kept.append(question)
-        if len(kept) == count:
-            break
-    return kept
+    _activity, places = _activity_and_places(sector)
+    if places:
+        local = [item for item in kept if any(place in fold(item) for place in places)]
+        if local:
+            kept = local
+    return kept[:count]
 
 
 async def generate_questions(
@@ -149,7 +188,7 @@ async def generate_questions(
             raw = await _ask(owned, message)
     else:
         raw = await _ask(client, message)
-    questions = clean_questions(raw, brand_name, domain, existing, count)
+    questions = clean_questions(raw, brand_name, domain, existing, count, sector)
     if not questions:
         raise GenerationError("La génération n'a rien donné d'exploitable. Réessayez.")
     return questions

@@ -12,7 +12,7 @@ from models.schemas import (
     CompareSource,
     ComparisonOut,
 )
-from services.analyzer import Entity, normalize_domain
+from services.analyzer import Entity, is_generic_platform, normalize_domain
 from services.metrics import entities_of, run_mentions, week_start
 from store import StoredRun, Workspace
 
@@ -160,7 +160,7 @@ def _sources(entities: list[Entity], brand: Entity, prepared: list[tuple[StoredR
         named = [entity.name for entity in entities if entity.name in found]
         for citation in run.citations:
             domain = citation.domain
-            if domain in seen:
+            if domain in seen or is_generic_platform("", domain):
                 continue
             seen.add(domain)
             slot = bucket.setdefault(
