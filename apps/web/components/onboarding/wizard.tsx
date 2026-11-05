@@ -1,5 +1,6 @@
 "use client";
 
+import { RunProgressBar, runTracking } from "@/components/run-progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -147,7 +148,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     try {
       await saveSettings(payload);
       try {
-        await api("/tracking/run", { method: "POST", body: JSON.stringify({}) });
+        await runTracking({});
       } catch (caught) {
         const message = caught instanceof ApiError ? caught.message : "Le suivi n'a pas pu démarrer.";
         await queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -449,6 +450,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
           ) : null}
         </div>
 
+        {pending ? <div className="mt-4"><RunProgressBar active /></div> : null}
         {error ? <p className="mt-4 text-sm font-semibold">{error}</p> : null}
 
         <div className="mt-auto flex items-center justify-end gap-3 pt-8">

@@ -466,6 +466,14 @@ class CheckoutOut(APIModel):
     url: str
 
 
+class ProgressOut(APIModel):
+    running: bool
+    done: int
+    total: int
+    percent: int
+    label: str
+
+
 class JobOut(APIModel):
     id: str
     kind: Literal["tracking", "audit"]

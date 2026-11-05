@@ -56,29 +56,40 @@ class BatchResult:
 async def execute_batch(
     jobs: list[tuple[str, str, str]],
     entities: list[Entity],
+    on_done=None,
+    on_result=None,
 ) -> list[BatchResult]:
     """jobs: (query_id, prompt, provider).
 
     Chaque question est envoyée telle quelle, sans y injecter la marque : le taux de citation ne veut
     dire quelque chose que si le prompt reste celui que l'utilisateur a défini.
     Une file par moteur : un moteur lent ou limité ne retient pas les autres.
+    on_done(provider, prompt) et on_result(result, prompt) sont appelés après chaque réponse,
+    une fois le créneau libéré. on_result peut être asynchrone.
     """
     semaphores = {provider: asyncio.Semaphore(PER_ENGINE) for _query_id, _prompt, provider in jobs}
     created_at = datetime.now(timezone.utc)
 
     async def one(query_id: str, prompt: str, provider: str) -> BatchResult:
         async with semaphores[provider]:
-            result = await complete(provider, prompt, entities, f"{query_id}|{created_at.isoformat()}")
-        return BatchResult(
+            answer = await complete(provider, prompt, entities, f"{query_id}|{created_at.isoformat()}")
+        result = BatchResult(
             query_id=query_id,
             provider=provider,
-            text=result.text,
-            citations=citations_from_sources(result.sources),
-            model=result.model,
-            source_mode=result.source_mode,
-            error=result.error,
+            text=answer.text,
+            citations=citations_from_sources(answer.sources),
+            model=answer.model,
+            source_mode=answer.source_mode,
+            error=answer.error,
             created_at=created_at,
-            no_answer=result.no_answer,
+            no_answer=answer.no_answer,
         )
+        if on_done is not None:
+            on_done(provider, prompt)
+        if on_result is not None:
+            outcome = on_result(result, prompt)
+            if hasattr(outcome, "__await__"):
+                await outcome
+        return result
 
     return await asyncio.gather(*(one(query_id, prompt, provider) for query_id, prompt, provider in jobs))

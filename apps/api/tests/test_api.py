@@ -105,6 +105,33 @@ def test_comparison_ranks_brand_against_competitors(client: TestClient):
     assert body["providers"]
 
 
+def test_tracking_progress_is_idle_until_a_run(client: TestClient):
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    body = client.get("/api/v1/tracking/progress", headers=headers).json()
+    assert body["running"] is False
+
+
+def test_old_month_stamp_does_not_wipe_questions_already_sent(client: TestClient):
+    from datetime import datetime, timezone
+
+    from models.tables import WorkspaceRow
+
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    user = store.user_by_email(DEMO_EMAIL)
+    assert user is not None
+    workspace = store.workspace_for(user.id)
+    assert workspace is not None
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with store._session() as session, session.begin():
+        row = session.get(WorkspaceRow, workspace.id)
+        assert row is not None
+        row.period_month = day[:7]
+        row.questions_used = 5
+    body = client.get("/api/v1/billing", headers=headers).json()
+    assert body["questionsUsed"] == 5
+    assert body["periodDay"] == day
+
+
 def test_subscription_limits_questions_sent_this_month(client: TestClient):
     token = _token(client)
     headers = {"Authorization": f"Bearer {token}"}
