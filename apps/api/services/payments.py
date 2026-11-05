@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 
 import httpx
@@ -64,7 +65,7 @@ def start_checkout(workspace: Workspace, email: str, plan_id: str) -> str:
     form = {
         "mode": "subscription",
         "client_reference_id": workspace.id,
-        "success_url": f"{base}/billing?checkout=success",
+        "success_url": f"{base}/billing?checkout=success&session_id={{CHECKOUT_SESSION_ID}}",
         "cancel_url": f"{base}/billing?checkout=cancel",
         "locale": "fr",
         "line_items[0][price]": price,
@@ -158,6 +159,72 @@ def _price_on_subscription(data: dict) -> str:
     if isinstance(price, dict) and isinstance(price.get("id"), str):
         return price["id"]
     return ""
+
+
+def _stripe_get(url: str) -> dict:
+    try:
+        response = httpx.get(url, headers={"Authorization": f"Bearer {_secret()}"}, timeout=20)
+    except httpx.HTTPError as error:
+        raise PaymentError("Stripe est injoignable.") from error
+    if response.status_code >= 400:
+        raise PaymentError("Stripe n'a pas pu confirmer le paiement.")
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise PaymentError("Stripe n'a pas pu confirmer le paiement.")
+    return payload
+
+
+def _owned(workspace_id: str, session: dict) -> bool:
+    if session.get("client_reference_id") == workspace_id:
+        return True
+    meta = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
+    return meta.get("workspace_id") == workspace_id
+
+
+def _paid_subscription(session: dict) -> bool:
+    return (
+        session.get("mode") == "subscription"
+        and session.get("status") == "complete"
+        and session.get("payment_status") in {"paid", "no_payment_required"}
+    )
+
+
+def _grant_session(session: dict) -> None:
+    meta = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
+    workspace_id = meta.get("workspace_id") if isinstance(meta.get("workspace_id"), str) else ""
+    if not workspace_id and isinstance(session.get("client_reference_id"), str):
+        workspace_id = session["client_reference_id"]
+    plan_id = meta.get("plan_id") if isinstance(meta.get("plan_id"), str) else ""
+    if not workspace_id or plan_by_id(plan_id) is None:
+        raise PaymentError("Ce paiement ne correspond pas à un forfait.")
+    customer = session.get("customer") if isinstance(session.get("customer"), str) else ""
+    subscription = session.get("subscription") if isinstance(session.get("subscription"), str) else ""
+    previous = store.apply_paid_plan(workspace_id, plan_id, customer, subscription)
+    if previous:
+        _cancel_subscription(previous)
+
+
+def confirm_checkout(workspace: Workspace, session_id: str | None) -> bool:
+    """Active le forfait à partir de la session Stripe, sans attendre le webhook."""
+    if not enabled():
+        raise PaymentError("Le paiement Stripe n'est pas configuré.")
+    if session_id:
+        if re.fullmatch(r"cs_[A-Za-z0-9_]+", session_id) is None:
+            raise PaymentError("Paiement introuvable.")
+        session = _stripe_get(f"{CHECKOUT_URL}/{session_id}")
+        if not _owned(workspace.id, session):
+            raise PaymentError("Ce paiement ne correspond pas à cet espace.")
+        if not _paid_subscription(session):
+            raise PaymentError("Le paiement n'est pas terminé.")
+        _grant_session(session)
+        return True
+    payload = _stripe_get(f"{CHECKOUT_URL}?limit=20")
+    rows = payload.get("data") if isinstance(payload.get("data"), list) else []
+    for session in rows:
+        if isinstance(session, dict) and _owned(workspace.id, session) and _paid_subscription(session):
+            _grant_session(session)
+            return True
+    return False
 
 
 def apply_event(event: dict) -> None:

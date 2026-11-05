@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from models.schemas import CheckoutOut, SubscribeIn, SubscriptionOut
 from routers.deps import current_user
 from services.billing import activate, snapshot
-from services.payments import PaymentError, apply_event, enabled, event_from, start_checkout
+from services.payments import PaymentError, apply_event, confirm_checkout, enabled, event_from, start_checkout
 from store import User, store
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -40,6 +42,21 @@ def open_checkout(payload: SubscribeIn, user: User = Depends(current_user)) -> C
     except PaymentError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     return CheckoutOut(url=url)
+
+
+@router.post("/confirm", response_model=SubscriptionOut)
+def confirm_payment(
+    user: User = Depends(current_user),
+    session_id: str | None = Query(default=None, alias="sessionId"),
+) -> SubscriptionOut:
+    workspace = _workspace_for(user)
+    try:
+        found = confirm_checkout(workspace, session_id)
+    except PaymentError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    if not found:
+        raise HTTPException(status_code=404, detail="Aucun paiement confirmé pour cet espace.")
+    return snapshot(workspace)
 
 
 @router.post("/webhook")

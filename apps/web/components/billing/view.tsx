@@ -10,11 +10,12 @@ import { euros } from "@/lib/format";
 import type { Subscription } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function BillingView() {
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const confirmedOnce = useRef(false);
   const queryClient = useQueryClient();
   useEffect(() => setReady(true), []);
   const billing = useQuery({
@@ -30,21 +31,27 @@ export function BillingView() {
     onError: (error: Error) => setMessage(error.message),
   });
   useEffect(() => {
-    const checkout = new URLSearchParams(window.location.search).get("checkout");
-    if (checkout === "cancel") {
+    if (!ready || !billing.data || confirmedOnce.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "cancel") {
+      confirmedOnce.current = true;
       setMessage("Paiement annulé. Le forfait n'a pas changé.");
       return;
     }
-    if (checkout !== "success") return;
-    setMessage("Paiement reçu. Le forfait s'active dès que Stripe le confirme.");
-    let tries = 0;
-    const timer = window.setInterval(() => {
-      tries += 1;
-      void queryClient.invalidateQueries({ queryKey: ["billing"] });
-      if (tries >= 5) window.clearInterval(timer);
-    }, 2000);
-    return () => window.clearInterval(timer);
-  }, [queryClient]);
+    const returned = params.get("checkout") === "success" || Boolean(params.get("session_id"));
+    if (!returned && billing.data.plan) return;
+    confirmedOnce.current = true;
+    const sessionId = params.get("session_id");
+    const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+    api<Subscription>(`/billing/confirm${query}`, { method: "POST" })
+      .then((next) => {
+        queryClient.setQueryData(["billing"], next);
+        setMessage(next.plan ? `Le forfait ${next.plan.name} est actif.` : "Paiement reçu.");
+      })
+      .catch((error: Error) => {
+        if (returned) setMessage(error.message);
+      });
+  }, [billing.data, queryClient, ready]);
   if (!ready || billing.isPending) return <PageFallback />;
   if (billing.error || !billing.data) {
     return (
@@ -61,6 +68,11 @@ export function BillingView() {
         title="Choisissez le nombre de questions"
         description="Une question est envoyée aux trois moteurs et compte pour une dans le forfait. Le compte reste ouvert : position, sources et axes d'amélioration se consultent sans nouvelle question."
       />
+      {message ? (
+        <p className="mb-4 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-semibold" role="status">
+          {message}
+        </p>
+      ) : null}
       {data.plan ? (
         <Card className="mb-4">
           <CardContent className="pt-5">
@@ -103,7 +115,6 @@ export function BillingView() {
           );
         })}
       </div>
-      {message ? <p className="mt-4 text-sm text-muted-foreground">{message}</p> : null}
       <p className="mt-4 text-xs leading-5 text-muted-foreground">
         Le paiement s'ouvre sur Stripe. Le forfait s'active une fois le paiement confirmé.
       </p>

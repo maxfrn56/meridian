@@ -21,7 +21,7 @@ STAT_RE = re.compile(
 )
 SCHEMA_TYPES = ("Organization", "Product", "FAQPage", "Article")
 BOTS = ("GPTBot", "PerplexityBot", "ClaudeBot")
-USER_AGENT = "MeridianGEOBot/0.1 (audit demandé par le propriétaire du domaine)"
+USER_AGENT = "MeridianGEOBot/0.1 (audit requested by the site owner)"
 MAX_PAGES = 5
 MAX_BYTES = 2_000_000
 

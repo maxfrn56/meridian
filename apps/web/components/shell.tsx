@@ -1,7 +1,8 @@
 "use client";
 
+import { OnboardingWizard } from "@/components/onboarding/wizard";
 import { api, TOKEN_KEY } from "@/lib/api";
-import type { User } from "@/lib/types";
+import type { Settings as WorkspaceSettings, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { CreditCard, GitCompare, LayoutDashboard, LogOut, Radar, ScanSearch, Settings, Users } from "lucide-react";
@@ -82,7 +83,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     enabled: authed,
   });
   const admin = me.data?.role === "admin";
+  const client = me.data?.role === "client";
   const onAdmin = pathname.startsWith("/admin") || pathname === "/prospects";
+  const profile = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api<WorkspaceSettings>("/settings"),
+    enabled: authed && client,
+  });
 
   useEffect(() => {
     if (!me.data) return;
@@ -91,6 +98,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [admin, me.data, onAdmin, router]);
 
   if (!ready || !authed || me.isPending || !me.data || admin !== onAdmin) return <PageFallback />;
+  if (client && profile.isPending) return <PageFallback />;
+  const needsProfile = client && profile.isSuccess && profile.data.domain.trim().length === 0;
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
@@ -140,6 +149,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <NavLinks items={navigation} />
         </nav>
         <main>{children}</main>
+        {needsProfile ? <OnboardingWizard onDone={() => router.push("/audit")} /> : null}
       </div>
     </div>
   );

@@ -214,6 +214,49 @@ def test_settings_no_longer_carry_competitors(client: TestClient):
     assert "competitors" not in response.json()
 
 
+def test_return_from_stripe_activates_the_plan(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    os.environ["STRIPE_SECRET_KEY"] = "sk_test_fake"
+    os.environ["STRIPE_PRICE_ESSENTIEL"] = "price_essentiel"
+    user = store.user_by_email(DEMO_EMAIL)
+    workspace = store.workspace_for(user.id)
+    session = {
+        "id": "cs_test_paid",
+        "mode": "subscription",
+        "status": "complete",
+        "payment_status": "paid",
+        "customer": "cus_return",
+        "subscription": "sub_return",
+        "client_reference_id": workspace.id,
+        "metadata": {"workspace_id": workspace.id, "plan_id": "essentiel"},
+    }
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, headers=None, timeout=None):
+        if url.endswith("/cs_test_paid"):
+            return Response(session)
+        if "limit=20" in url:
+            return Response({"data": [session]})
+        return Response({})
+
+    monkeypatch.setattr("services.payments.httpx.get", fake_get)
+    token = _token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    confirmed = client.post("/api/v1/billing/confirm?sessionId=cs_test_paid", headers=headers)
+    assert confirmed.status_code == 200
+    assert confirmed.json()["plan"]["id"] == "essentiel"
+    store.clear_paid_plan(workspace.id)
+    recovered = client.post("/api/v1/billing/confirm", headers=headers)
+    assert recovered.status_code == 200
+    assert recovered.json()["plan"]["name"] == "Essentiel"
+
+
 def test_tracking_run_appends_results(client: TestClient):
     token = _token(client)
     headers = {"Authorization": f"Bearer {token}"}
