@@ -25,6 +25,13 @@ def _flag(name: str, default: str) -> str:
     return os.getenv(name, default).strip().lower()
 
 
+# Catalogue des moteurs, dans l'ordre d'affichage. Chaque espace en choisit trois.
+# « openai » reste l'identifiant de ChatGPT : l'historique y est rattaché.
+ENGINES = ("openai", "google_ai_overview", "google_ai_mode", "gemini", "perplexity", "claude", "aistudio")
+# Moteurs que DataForSEO sait interroger. AI Studio n'a qu'un appel direct, avec la clé Gemini.
+DATAFORSEO_ENGINES = frozenset(ENGINES) - {"aistudio"}
+
+
 @dataclass(frozen=True)
 class Settings:
     secret_key: str
@@ -41,9 +48,18 @@ class Settings:
     anthropic_api_key: str
     analysis_model: str
     analysis_llm: str
+    dataforseo_login: str = ""
+    dataforseo_password: str = ""
+    # Pays des réponses (moteurs et recherche web) et langue par défaut si la question ne la trahit pas.
+    dataforseo_country: str = "FR"
+    dataforseo_language: str = "fr"
+    claude_model: str = "claude-sonnet-5-5"
+    perplexity_model: str = "sonar"
 
-    def provider_mode(self, provider: str) -> str:
-        """live si la clé existe et que la simulation n'est pas forcée."""
+    def provider_backend(self, provider: str) -> str | None:
+        """dataforseo si ses identifiants sont posés, sinon l'API directe si sa clé existe, sinon rien."""
+        if self.dataforseo_login and self.dataforseo_password and provider in DATAFORSEO_ENGINES:
+            return "dataforseo"
         key = {
             "openai": self.openai_api_key,
             "perplexity": self.perplexity_api_key,
@@ -51,11 +67,15 @@ class Settings:
             "claude": self.anthropic_api_key,
             "aistudio": self.gemini_api_key,
         }.get(provider, "")
+        return "direct" if key else None
+
+    def provider_mode(self, provider: str) -> str:
+        """live si le moteur peut être interrogé et que la simulation n'est pas forcée."""
         if self.mock_llm == "true":
             return "mock"
         if self.mock_llm == "false":
             return "live"
-        return "live" if key else "mock"
+        return "live" if self.provider_backend(provider) else "mock"
 
     def llm_analysis_enabled(self) -> bool:
         """Analyse des réponses par Claude : active dès que la clé existe, sauf ANALYSIS_LLM=false."""
@@ -99,6 +119,12 @@ def load_settings() -> Settings:
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
         analysis_model=os.getenv("ANALYSIS_MODEL", "claude-haiku-5-5").strip() or "claude-haiku-5-5",
         analysis_llm=_flag("ANALYSIS_LLM", "auto"),
+        dataforseo_login=os.getenv("DATAFORSEO_LOGIN", "").strip(),
+        dataforseo_password=os.getenv("DATAFORSEO_PASSWORD", "").strip(),
+        dataforseo_country=(os.getenv("DATAFORSEO_COUNTRY", "FR").strip() or "FR").upper(),
+        dataforseo_language=(os.getenv("DATAFORSEO_LANGUAGE", "fr").strip() or "fr").lower(),
+        claude_model=os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5").strip() or "claude-sonnet-5-5",
+        perplexity_model=os.getenv("PERPLEXITY_MODEL", "sonar").strip() or "sonar",
     )
 
 

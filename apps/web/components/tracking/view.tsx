@@ -45,12 +45,12 @@ function TrackingData() {
   }
 
   const engines = PROVIDERS.filter((item) => tracking.data.providers.includes(item.id));
-  const rows = tracking.data.queries.map((query) => {
-    const selected =
-      provider === "all"
-        ? engines.map((item) => query.runs[item.id]).find((item) => item) ?? null
-        : query.runs[provider];
-    return { query, selected };
+  /* « Tous les moteurs » : une ligne par moteur qui a répondu, la question n'est écrite qu'une fois. */
+  const rows = tracking.data.queries.flatMap((query) => {
+    if (provider !== "all") return [{ query, selected: query.runs[provider], first: true, key: `${query.id}-${provider}` }];
+    const answered = engines.map((item) => query.runs[item.id]).filter((item): item is TrackingRun => Boolean(item));
+    if (answered.length === 0) return [{ query, selected: null, first: true, key: `${query.id}-none` }];
+    return answered.map((selected, index) => ({ query, selected, first: index === 0, key: `${query.id}-${selected.provider}` }));
   });
 
   return (
@@ -98,15 +98,16 @@ function TrackingData() {
                   </td>
                 </tr>
               ) : null}
-              {rows.map(({ query, selected }) => {
+              {rows.map(({ query, selected, first, key }) => {
                 const sentiment = sentimentMeta(selected?.sentiment ?? null);
-                const open = openId === `${query.id}-${provider}`;
+                const open = openId === key;
                 return (
                   <FragmentRow
-                    key={query.id}
+                    key={key}
                     open={open}
-                    onToggle={() => setOpenId(open ? null : `${query.id}-${provider}`)}
+                    onToggle={() => setOpenId(open ? null : key)}
                     prompt={query.prompt}
+                    showPrompt={first}
                     active={query.active}
                     run={selected}
                     sentimentClass={sentiment.className}
@@ -124,6 +125,7 @@ function TrackingData() {
 
 function FragmentRow({
   prompt,
+  showPrompt,
   active,
   run,
   open,
@@ -132,6 +134,7 @@ function FragmentRow({
   sentimentLabel,
 }: {
   prompt: string;
+  showPrompt: boolean;
   active: boolean;
   run: TrackingRun | null;
   open: boolean;
@@ -143,8 +146,13 @@ function FragmentRow({
     <>
       <tr className={cn("border-b border-border", !active && "opacity-50")}>
         <td className="max-w-sm px-4 py-3">
-          <button type="button" onClick={onToggle} className="text-left underline-offset-4 hover:underline">
-            {prompt}
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={showPrompt ? undefined : `${prompt} — ${run ? providerLabel(run.provider) : ""}`}
+            className={cn("text-left underline-offset-4 hover:underline", !showPrompt && "text-muted-foreground")}
+          >
+            {showPrompt ? prompt : "Voir la réponse"}
           </button>
         </td>
         <td className="px-4 py-3">
@@ -155,6 +163,8 @@ function FragmentRow({
               </Badge>
               {run.error ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{run.error}</p> : null}
             </div>
+          ) : run?.status === "no_answer" ? (
+            <Badge title="Le moteur n'affiche aucune réponse IA pour cette question.">Pas de réponse IA</Badge>
           ) : run?.cited ? (
             <Badge tone="good">Cité</Badge>
           ) : (

@@ -13,6 +13,8 @@ from store import StoredAudit, StoredRun, store
 
 ENGINE_LABELS = {
     "openai": "ChatGPT",
+    "google_ai_overview": "Google AI Overviews",
+    "google_ai_mode": "Google AI Mode",
     "gemini": "Gemini",
     "perplexity": "Perplexity",
     "claude": "Claude",
@@ -83,8 +85,8 @@ async def run_tracking(
 
         async def on_result(row, prompt: str) -> None:
             nonlocal saved
-            query_id = row[0]
-            provider = row[1]
+            query_id = row.query_id
+            provider = row.provider
             progress.advance(user_id, f"{ENGINE_LABELS.get(provider, provider)} · {_short(prompt)}")
             async with lock:
                 bucket = pending.get(query_id)
@@ -102,14 +104,14 @@ async def run_tracking(
                     id=uuid.uuid4().hex,
                     query_id=query_id,
                     query_prompt=prompts[query_id],
-                    provider=item[1],
-                    model=item[4],
-                    status="failed" if item[6] else "completed",
-                    source=item[5],
-                    response_text=item[2],
-                    citations=item[3],
-                    error=item[6],
-                    created_at=item[7],
+                    provider=item.provider,
+                    model=item.model,
+                    status=item.status,
+                    source=item.source_mode,
+                    response_text=item.text,
+                    citations=item.citations,
+                    error=item.error,
+                    created_at=item.created_at,
                 )
                 for item in rows
             ]

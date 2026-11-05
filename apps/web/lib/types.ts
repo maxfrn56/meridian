@@ -1,4 +1,11 @@
-export type Provider = "openai" | "perplexity" | "gemini" | "claude" | "aistudio";
+export type Provider =
+  | "openai"
+  | "google_ai_overview"
+  | "google_ai_mode"
+  | "gemini"
+  | "perplexity"
+  | "claude"
+  | "aistudio";
 export type LlmMode = "mock" | "live" | "mixed";
 
 export type User = {
@@ -75,7 +82,8 @@ export type TrackingRun = {
   queryPrompt: string;
   provider: Provider;
   model: string;
-  status: "completed" | "failed";
+  /** no_answer : le moteur n'affiche aucune réponse IA pour cette question. */
+  status: "completed" | "failed" | "no_answer";
   source: "live" | "mock";
   cited: boolean;
   position: number | null;

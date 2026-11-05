@@ -14,13 +14,22 @@ make web
 
 L'interface est sur [http://localhost:3000](http://localhost:3000). Compte de démonstration : `demo@geo.dev` / `meridian`.
 
-Sans clé d'API, les réponses des moteurs sont simulées et l'interface l'indique. Posez les clés dans un fichier `.env` à la racine (voir `.env.example`) pour passer en appels réels :
+Sans accès aux moteurs, les réponses sont simulées et l'interface l'indique. Posez les identifiants dans un fichier `.env` à la racine (voir `.env.example`) pour passer en appels réels.
 
-- `OPENAI_API_KEY` — GPT-4o avec recherche web
-- `PERPLEXITY_API_KEY` — modèle Sonar
-- `GEMINI_API_KEY` — Gemini avec Google Search
+Chaque espace choisit trois moteurs dans le catalogue. **DataForSEO** (`DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`) interroge les six premiers (`services/dataforseo.py`) :
 
-`MOCK_LLM=auto` interroge un moteur seulement si sa clé est présente.
+| Moteur | Ce qui est mesuré |
+|---|---|
+| ChatGPT (`openai`) | la réponse de l'interface chatgpt.com et les sources qu'elle cite |
+| Google AI Overviews | le résumé IA en tête des résultats Google, quand Google en affiche un |
+| Google AI Mode | la réponse du mode IA de Google |
+| Gemini | la réponse de l'interface Gemini |
+| Perplexity | l'API Sonar, avec recherche web |
+| Claude | l'API Claude (`CLAUDE_MODEL`), avec recherche web |
+
+Google AI Studio n'est pas couvert par DataForSEO : il passe par `GEMINI_API_KEY`. Le pays (`DATAFORSEO_COUNTRY`, France par défaut) règle la localisation ; la langue est déduite de la question. Quand Google n'affiche pas de résumé IA, la réponse est marquée « Pas de réponse IA » et sort des calculs.
+
+Sans DataForSEO, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY` et `GEMINI_API_KEY` permettent des appels directs (utile en développement) ; les moteurs sans accès sont simulés. `MOCK_LLM=auto` interroge un moteur seulement s'il a un accès.
 
 `ANTHROPIC_API_KEY` active l'analyse des réponses réelles par Claude Haiku (`ANALYSIS_MODEL`, `claude-haiku-5-5` par défaut). Sans elle, ou si l'appel échoue, l'analyse se fait par mots-clés.
 

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
+from config import ENGINES
 from db import SessionLocal
 from models.tables import (
     AuditRow,
@@ -95,7 +96,7 @@ class Workspace:
     trial_ends_at: datetime | None = None
 
 
-_KNOWN_ENGINES = {"openai", "perplexity", "gemini", "claude", "aistudio"}
+_KNOWN_ENGINES = set(ENGINES)
 _DEFAULT_ENGINES = ("openai", "perplexity", "gemini")
 
 

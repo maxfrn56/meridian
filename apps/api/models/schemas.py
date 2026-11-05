@@ -6,12 +6,17 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
-Provider = Literal["openai", "perplexity", "gemini", "claude", "aistudio"]
+from config import ENGINES
+
+Provider = Literal[
+    "openai", "google_ai_overview", "google_ai_mode", "gemini", "perplexity", "claude", "aistudio"
+]
 EntityType = Literal["brand", "competitor"]
 CheckStatus = Literal["pass", "warn", "fail"]
 Priority = Literal["P1", "P2", "P3"]
 Category = Literal["technical", "semantic", "authority"]
-RunStatus = Literal["completed", "failed"]
+# no_answer : le moteur n'affiche aucune réponse IA pour la question (fréquent pour Google AI Overviews).
+RunStatus = Literal["completed", "failed", "no_answer"]
 SourceMode = Literal["live", "mock"]
 Stance = Literal["recommended", "compared", "mentioned", "discouraged"]
 AnalysisMethod = Literal["llm", "keywords"]
@@ -158,7 +163,6 @@ class QueryIn(APIModel):
     active: bool = True
 
 
-ENGINES = ("openai", "perplexity", "gemini", "claude", "aistudio")
 
 
 class SettingsIn(APIModel):

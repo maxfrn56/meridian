@@ -26,7 +26,7 @@ def _capture(monkeypatch, status=200, body=None):
     monkeypatch.setattr(llm.httpx, "AsyncClient", lambda **kwargs: real(transport=httpx.MockTransport(handler), **kwargs))
     keys = {**settings.__dict__, "openai_api_key": "sk-test-openai-123456", "perplexity_api_key": "pplx-test-123456",
             "gemini_api_key": "AIzaTestGeminiKey123456", "mock_llm": "false"}
-    monkeypatch.setattr(llm, "settings", SimpleNamespace(**keys, provider_mode=lambda provider: "live"))
+    monkeypatch.setattr(llm, "settings", SimpleNamespace(**keys, provider_mode=lambda provider: "live", provider_backend=lambda provider: "direct"))
     return seen
 
 
@@ -51,7 +51,7 @@ def test_engine_errors_are_readable_and_hide_keys(monkeypatch):
     result = asyncio.run(llm.complete("gemini", PROMPT, [], "n"))
     assert result.error == "Erreur 404 (modèle ou adresse introuvable) : models/gemini-x is not found"
     timeout = httpx.ReadTimeout("lent", request=httpx.Request("POST", "https://api.perplexity.ai/v1/agent"))
-    assert describe_error(timeout) == "Le moteur n'a pas répondu à temps (60 s)."
+    assert describe_error(timeout) == "Le moteur n'a pas répondu à temps."
     old = "Client error '404 Not Found' for url 'https://x.googleapis.com/v1/m:generate?key=AIzaSyRealKey12345&alt=1'"
     assert "AIzaSyRealKey12345" not in redact_secrets(old)
     assert "sk-proj-abcdefghijkl" not in redact_secrets("Bearer sk-proj-abcdefghijkl refusée")
