@@ -7,14 +7,24 @@ from dataclasses import dataclass
 import httpx
 
 from config import settings
+from services import dataforseo
 from services.analyzer import Entity, host_of
+from services.dataforseo import DataForSEOError
 from services.simulator import Source, simulate_answer
 
+# Modèles des appels directs et des simulations. Via DataForSEO, le modèle vient de la réponse.
 MODELS = {
     "openai": "gpt-4o",
     "perplexity": "agent-fast",
     "gemini": "gemini-3.8-flash",
+    "google_ai_overview": "Google AI Overviews",
+    "google_ai_mode": "Google AI Mode",
+    "claude": "claude",
 }
+
+
+class EngineUnavailable(ValueError):
+    """Ni DataForSEO ni clé directe pour ce moteur, alors que la simulation est désactivée."""
 
 
 @dataclass(frozen=True)
@@ -24,6 +34,8 @@ class ProviderResult:
     model: str
     source_mode: str
     error: str | None = None
+    # Le moteur n'affiche aucune réponse IA pour cette question (AI Overviews le fait souvent).
+    no_answer: bool = False
 
 
 def _mock(prompt: str, provider: str, entities: list[Entity], nonce: str) -> ProviderResult:
@@ -164,14 +176,23 @@ async def complete(provider: str, prompt: str, entities: list[Entity], nonce: st
     if mode == "mock":
         return _mock(prompt, provider, entities, nonce)
     try:
+        if settings.provider_backend(provider) == "dataforseo":
+            answer = await dataforseo.ask(provider, prompt)
+            return ProviderResult(
+                text=answer.text,
+                sources=answer.sources,
+                model=answer.model or MODELS.get(provider, provider),
+                source_mode="live",
+                no_answer=answer.no_answer,
+            )
         if provider == "openai":
             return await _call_openai(prompt)
         if provider == "perplexity":
             return await _call_perplexity(prompt)
         if provider == "gemini":
             return await _call_gemini(prompt)
-        raise ValueError(f"Moteur inconnu : {provider}")
-    except (httpx.HTTPError, KeyError, IndexError, ValueError) as error:
+        raise EngineUnavailable("Aucun accès configuré pour ce moteur : ajoutez les identifiants DataForSEO.")
+    except (httpx.HTTPError, KeyError, IndexError, ValueError, DataForSEOError) as error:
         return ProviderResult(
             text="",
             sources=[],
@@ -200,7 +221,9 @@ def redact_secrets(text: str) -> str:
 def describe_error(error: Exception) -> str:
     """Une phrase lisible pour le tableau de bord, sans URL ni clé."""
     if isinstance(error, httpx.TimeoutException):
-        message = "Le moteur n'a pas répondu à temps (60 s)."
+        message = "Le moteur n'a pas répondu à temps."
+    elif isinstance(error, (DataForSEOError, EngineUnavailable)):
+        message = str(error)
     elif isinstance(error, httpx.HTTPStatusError):
         status = error.response.status_code
         message = f"Erreur {status} ({STATUS_LABELS.get(status, 'erreur du moteur')})"

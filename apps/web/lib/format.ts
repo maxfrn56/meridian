@@ -1,9 +1,13 @@
 import type { Provider } from "@/lib/types";
 
+/* « openai » reste l'identifiant de ChatGPT : l'historique y est rattaché. */
 export const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "openai", label: "GPT-4o" },
-  { id: "perplexity", label: "Perplexity" },
+  { id: "openai", label: "ChatGPT" },
+  { id: "google_ai_overview", label: "Google AI Overviews" },
+  { id: "google_ai_mode", label: "Google AI Mode" },
   { id: "gemini", label: "Gemini" },
+  { id: "perplexity", label: "Perplexity" },
+  { id: "claude", label: "Claude" },
 ];
 
 export function providerLabel(provider: Provider) {

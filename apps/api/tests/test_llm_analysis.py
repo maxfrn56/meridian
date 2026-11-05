@@ -10,6 +10,7 @@ import httpx as httpx2
 import services.orchestrator
 from services.analyzer import AnalyzedMention, Citation, Entity, is_generic_platform, mentions_from_analysis
 from services.metrics import domain_gaps, market_rivals
+from services.tracker import BatchResult
 from services.llm_analysis import BrandMention, ResponseAnalysis, analyze_response, analyze_runs, clean_analysis
 from seed import DEMO_EMAIL
 from store import StoredRun, Workspace, store
@@ -117,7 +118,9 @@ def test_tracking_stores_the_analysis_and_metrics_use_it(client, monkeypatch):  
 
     async def live_batch(jobs, entities):
         now = datetime.now(timezone.utc)
-        return [(qid, provider, ANSWER, [], "gpt-4o", "live", None, now) for qid, _prompt, provider in jobs]
+        return [
+            BatchResult(qid, provider, ANSWER, [], "gpt-4o", "live", None, now) for qid, _prompt, provider in jobs
+        ]
 
     fake = FakeClient(parsed=PARSED)
     monkeypatch.setattr(services.orchestrator, "execute_batch", live_batch)

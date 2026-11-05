@@ -6,6 +6,7 @@ from services.auditor import crawl_site
 from services.billing import assert_quota
 from services.llm_analysis import analysis_version, analyze_runs
 from services.metrics import entities_of
+from config import settings
 from services.tracker import PROVIDERS, execute_batch
 from store import StoredAudit, StoredRun, store
 
@@ -18,7 +19,7 @@ async def run_tracking(
     workspace = store.workspace_for(user_id)
     if workspace is None:
         raise ValueError("Espace introuvable.")
-    selected = providers or list(PROVIDERS)
+    selected = providers or list(settings.engines)
     unknown = [item for item in selected if item not in PROVIDERS]
     if unknown:
         raise ValueError(f"Moteur inconnu : {', '.join(unknown)}.")
@@ -39,20 +40,20 @@ async def run_tracking(
     prompts = {query.id: query.prompt for query in queries}
     results = await execute_batch(jobs, entities)
     stored: list[StoredRun] = []
-    for query_id, provider, text, citations, model, source_mode, error, created_at in results:
+    for result in results:
         stored.append(
             StoredRun(
                 id=uuid.uuid4().hex,
-                query_id=query_id,
-                query_prompt=prompts[query_id],
-                provider=provider,
-                model=model,
-                status="failed" if error else "completed",
-                source=source_mode,
-                response_text=text,
-                citations=citations,
-                error=error,
-                created_at=created_at,
+                query_id=result.query_id,
+                query_prompt=prompts[result.query_id],
+                provider=result.provider,
+                model=result.model,
+                status=result.status,
+                source=result.source_mode,
+                response_text=result.text,
+                citations=result.citations,
+                error=result.error,
+                created_at=result.created_at,
             )
         )
     analyses = await analyze_runs(stored, entities)
