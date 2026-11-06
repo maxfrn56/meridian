@@ -14,10 +14,16 @@ import { useEffect, useState } from "react";
 export function ComparisonView() {
   const [ready, setReady] = useState(false);
   const [provider, setProvider] = useState<Provider | "all">("all");
+  const [span, setSpan] = useState<"week" | "all">("all");
+  const [tag, setTag] = useState("");
   useEffect(() => setReady(true), []);
   const comparison = useQuery({
-    queryKey: ["comparison"],
-    queryFn: () => api<Comparison>("/comparison"),
+    queryKey: ["comparison", span, tag],
+    queryFn: () => {
+      const params = new URLSearchParams({ span });
+      if (tag) params.set("tag", tag);
+      return api<Comparison>(`/comparison?${params.toString()}`);
+    },
     enabled: ready,
   });
   if (!ready || comparison.isPending) return <PageFallback />;
@@ -33,10 +39,30 @@ export function ComparisonView() {
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
       <PageHeader
-        meta={data.week ? `Semaine du ${weekLabel(data.week)}` : undefined}
+        meta={data.span === "all" ? "Tout l'historique enregistré" : data.week ? `Semaine du ${weekLabel(data.week)}` : undefined}
         title="Marque contre concurrents"
-        description={`${data.runs} réponses de la dernière semaine. Quatre lectures : présence, rang, ton et sources. Aucun nouvel appel n’est lancé.`}
+        description={`${data.runs} réponses déjà enregistrées. Présence, rang, ton et sources. Aucun nouvel appel n'est lancé.`}
       />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Filter active={span === "all"} onClick={() => setSpan("all")}>
+          Tout l'historique
+        </Filter>
+        <Filter active={span === "week"} onClick={() => setSpan("week")}>
+          Dernière semaine
+        </Filter>
+      </div>
+      {data.tags.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Filter active={tag === ""} onClick={() => setTag("")}>
+            Toutes les étiquettes
+          </Filter>
+          {data.tags.map((item) => (
+            <Filter key={item} active={tag === item} onClick={() => setTag(item)}>
+              {item}
+            </Filter>
+          ))}
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-wrap gap-2">
         <Filter active={provider === "all"} onClick={() => setProvider("all")}>
           Tous les moteurs
@@ -135,6 +161,7 @@ export function ComparisonView() {
                 <tr key={prompt.queryId} className="border-t border-border align-top">
                   <td className="max-w-xs px-4 py-3">
                     <p>{prompt.prompt}</p>
+                    {prompt.tag ? <p className="mt-1 text-xs text-muted-foreground">{prompt.tag}</p> : null}
                     {prompt.brandMentioned ? null : (
                       <Badge className="mt-2" tone="warn">
                         Marque absente

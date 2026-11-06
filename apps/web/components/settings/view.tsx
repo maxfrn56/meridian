@@ -13,7 +13,8 @@ import { PROVIDERS } from "@/lib/format";
 import type { Provider, Settings, SettingsInput, Subscription } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { parseQuestionFile } from "@/lib/questions";
 
 const DEFAULT_ENGINES: Provider[] = ["openai", "perplexity", "gemini"];
 
@@ -42,7 +43,7 @@ function toInput(settings: Settings): SettingsInput {
     brandName: settings.brandName,
     domain: settings.domain,
     sector: settings.sector,
-    queries: settings.queries.map(({ prompt, active }) => ({ prompt, active })),
+    queries: settings.queries.map(({ prompt, active, tag }) => ({ prompt, active, tag: tag ?? "" })),
     providers: settings.providers?.length === 3 ? settings.providers : DEFAULT_ENGINES,
   };
 }
@@ -55,6 +56,7 @@ function SettingsData() {
   const [message, setMessage] = useState<string | null>(null);
   /* Questions proposées par l'IA et pas encore enregistrées. */
   const [proposed, setProposed] = useState<Set<string>>(new Set());
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (settings.data) setForm(toInput(settings.data));
@@ -74,6 +76,7 @@ function SettingsData() {
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
       await queryClient.invalidateQueries({ queryKey: ["overview"] });
       await queryClient.invalidateQueries({ queryKey: ["tracking"] });
+      await queryClient.invalidateQueries({ queryKey: ["comparison"] });
       await queryClient.invalidateQueries({ queryKey: ["audit"] });
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     },
@@ -93,7 +96,7 @@ function SettingsData() {
         existing: filled.map((query) => query.prompt),
       }),
     onSuccess: ({ questions }) => {
-      setForm({ ...form, queries: [...filled, ...questions.map((prompt) => ({ prompt, active: true }))] });
+      setForm({ ...form, queries: [...filled, ...questions.map((prompt) => ({ prompt, active: true, tag: "" }))] });
       setProposed(new Set([...proposed, ...questions]));
       setMessage(
         `${questions.length} questions proposées. Relisez-les, retirez celles qui ne correspondent pas à vos clients, puis enregistrez.`,
@@ -200,13 +203,59 @@ function SettingsData() {
               variant="outline"
               size="sm"
               disabled={form.queries.length >= MAX_QUERIES}
-              onClick={() => setForm({ ...form, queries: [...form.queries, { prompt: "", active: true }] })}
+              onClick={() => fileRef.current?.click()}
+            >
+              Importer
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.txt,text/csv,text/plain"
+              className="sr-only"
+              aria-label="Fichier de questions"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                void file.text().then((text) => {
+                  const imported = parseQuestionFile(text);
+                  let kept = 0;
+                  setForm((current) => {
+                    const known = new Set(current.queries.map((item) => item.prompt.trim()));
+                    const next = [...current.queries];
+                    for (const item of imported) {
+                      if (known.has(item.prompt) || next.length >= MAX_QUERIES) continue;
+                      known.add(item.prompt);
+                      next.push({ prompt: item.prompt, active: true, tag: item.tag });
+                      kept += 1;
+                    }
+                    return { ...current, queries: next };
+                  });
+                  setMessage(
+                    kept
+                      ? `${kept} question${kept > 1 ? "s" : ""} importée${kept > 1 ? "s" : ""}. Enregistrez pour les conserver.`
+                      : "Aucune question nouvelle dans ce fichier.",
+                  );
+                });
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={form.queries.length >= MAX_QUERIES}
+              onClick={() => setForm({ ...form, queries: [...form.queries, { prompt: "", active: true, tag: "" }] })}
             >
               Ajouter
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          <datalist id="question-tags">
+            <option value="Persona" />
+            <option value="Produit" />
+            <option value="Zone" />
+            <option value="Intention" />
+          </datalist>
           {form.queries.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Aucune question. Générez-en à partir de votre site, ou ajoutez les vôtres.
@@ -219,6 +268,14 @@ function SettingsData() {
                   aria-label="Requête cible"
                   value={query.prompt}
                   onChange={(event) => updateQuery(index, { prompt: event.target.value })}
+                />
+                <Input
+                  aria-label="Étiquette"
+                  list="question-tags"
+                  maxLength={40}
+                  placeholder="Étiquette : persona, produit, zone, intention"
+                  value={query.tag ?? ""}
+                  onChange={(event) => updateQuery(index, { tag: event.target.value })}
                 />
                 {proposed.has(query.prompt) ? (
                   <Badge className="w-fit">Proposée par l&apos;IA, pas encore enregistrée</Badge>

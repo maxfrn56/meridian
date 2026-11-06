@@ -14,7 +14,7 @@ def _out(workspace: Workspace) -> SettingsOut:
         brand_name=workspace.brand_name,
         domain=workspace.domain,
         sector=workspace.sector,
-        queries=[QueryOut(id=item.id, prompt=item.prompt, active=item.active) for item in workspace.queries],
+        queries=[QueryOut(id=item.id, prompt=item.prompt, active=item.active, tag=item.tag) for item in workspace.queries],
         providers=list(workspace.providers),
     )
 
@@ -33,7 +33,7 @@ def write_settings(payload: SettingsIn, workspace: Workspace = Depends(current_w
             payload.brand_name,
             payload.domain,
             payload.sector,
-            [(item.prompt, item.active) for item in payload.queries],
+            [(item.prompt, item.active, item.tag) for item in payload.queries],
             providers=payload.providers or None,
         )
     except ValueError as error:

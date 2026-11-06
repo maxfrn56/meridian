@@ -99,6 +99,8 @@ class QueryRow(Base):
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
     prompt: Mapped[str] = mapped_column(Text)
     active: Mapped[bool] = mapped_column(default=True)
+    # Étiquette libre : persona, produit, zone, intention, ou un libellé du client.
+    tag: Mapped[str] = mapped_column(String(40), default="", server_default="")
     position: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

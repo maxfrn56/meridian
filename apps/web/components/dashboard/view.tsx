@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageFallback } from "@/components/fallback";
 import { RunProgressBar, runTracking, useRefreshAfterRun, useTrackingLaunch } from "@/components/run-progress";
 import { api } from "@/lib/api";
-import { percent, signedRate } from "@/lib/format";
+import { percent, sentimentMeta, signedRate } from "@/lib/format";
 import type { Overview, Subscription } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -83,12 +83,28 @@ function DashboardData() {
           <div className="grid gap-4 md:grid-cols-3">
             <Kpi label="Taux de citation" value={percent(data.kpis.citationRate)} delta={signedRate(data.kpis.citationRateDelta)} />
             <Kpi label="Part de voix" value={percent(data.kpis.shareOfVoice)} delta={signedRate(data.kpis.shareOfVoiceDelta)} />
-            <Kpi label="Requêtes actives" value={String(data.kpis.queriesTracked)} delta={`${data.kpis.runsCompleted} réponses`} />
+            <Kpi label="Position moyenne" value={positionLabel(data.kpis.averagePosition)} delta="1 = cité en premier" />
+            <Kpi
+              label="Ton"
+              value={sentimentMeta(data.kpis.sentiment).label}
+              delta="Jugement moyen dans les réponses"
+              valueClass={sentimentMeta(data.kpis.sentiment).className}
+            />
+            <Kpi
+              label="Sources propres"
+              value={percent(data.kpis.ownSourceRate)}
+              delta={
+                data.kpis.ownSourceRateDelta == null
+                  ? "Part des réponses qui citent votre domaine"
+                  : `${signedRate(data.kpis.ownSourceRateDelta)} vs la semaine précédente`
+              }
+            />
+            <Kpi label="Requêtes actives" value={String(data.kpis.queriesTracked)} delta={`${data.kpis.runsCompleted} réponses enregistrées`} />
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
             <Card>
               <CardHeader>
-                <CardTitle>Citation et part de voix</CardTitle>
+                <CardTitle>Citation et part de voix, toutes les semaines</CardTitle>
                 <TrendLegend />
               </CardHeader>
               <CardContent>
@@ -149,7 +165,7 @@ function AccountAccess({ billing }: { billing?: Subscription }) {
       </Card>
       <div className="grid gap-3 sm:grid-cols-2">
         <AccessLink href="/comparison" title="Position" text="Rang, visibilité et ton face aux concurrents." />
-        <AccessLink href="/comparison#sources" title="Sources" text="Les domaines qui nourrissent les réponses." />
+        <AccessLink href="/audit" title="Audit" text="Lisibilité du site pour les IA, et actions à mener." />
       </div>
     </div>
   );
@@ -164,12 +180,17 @@ function AccessLink({ href, title, text }: { href: string; title: string; text: 
   );
 }
 
-function Kpi({ label, value, delta }: { label: string; value: string; delta: string }) {
+function positionLabel(value: number | null) {
+  if (value == null) return "—";
+  return value.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+}
+
+function Kpi({ label, value, delta, valueClass }: { label: string; value: string; delta: string; valueClass?: string }) {
   return (
     <Card>
       <CardContent className="pt-5">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-2 tabular-nums text-3xl font-semibold tracking-[-0.03em]">{value}</p>
+        <p className={`mt-2 tabular-nums text-3xl font-semibold tracking-[-0.03em] ${valueClass ?? ""}`}>{value}</p>
         <p className="mt-2 text-sm text-muted-foreground">{delta}</p>
       </CardContent>
     </Card>

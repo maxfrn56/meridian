@@ -45,6 +45,9 @@ from store import StoredAudit, StoredRun, Workspace
 METHODOLOGY = (
     "Taux de citation : part des réponses où la marque est nommée ou dont le domaine apparaît dans les sources. "
     "Part de voix : mentions de la marque rapportées à celles des marques les plus citées à ses côtés, une fois par réponse. "
+    "Position : rang moyen quand la marque est nommée, 1 étant la première. "
+    "Ton : jugement moyen dans la phrase. Sources propres : part des réponses qui citent le domaine de la marque. "
+    "Les indicateurs portent sur la semaine la plus récente. La courbe reprend toutes les semaines enregistrées. "
     "Les réponses réelles sont lues par Claude (marques nommées, rang, ton) ; à défaut, par mots-clés."
 )
 
@@ -110,6 +113,36 @@ def entities_of(workspace: Workspace) -> list[Entity]:
     entities = [Entity(workspace.brand_name, workspace.domain, "brand")]
     entities.extend(Entity(item.name, item.domain, "competitor") for item in market_rivals(workspace)[:MAX_RIVALS])
     return entities
+
+
+def _mean(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return round(sum(values) / len(values), 2)
+
+
+def _cites_domain(run: StoredRun, domain: str) -> bool:
+    owned = normalize_domain(domain)
+    if not owned:
+        return False
+    return any(item.domain == owned or item.domain.endswith(f".{owned}") for item in run.citations)
+
+
+def brand_reading(runs: list[StoredRun], entities: list[Entity]) -> tuple[float | None, float | None, float | None]:
+    """Position moyenne, ton moyen et part de sources propres, sur les réponses déjà enregistrées."""
+    brand = entities[0]
+    positions: list[float] = []
+    sentiments: list[float] = []
+    own = 0
+    for run in runs:
+        found = next((item for item in run_mentions(run, entities) if item.entity_name == brand.name), None)
+        if found is not None:
+            positions.append(float(found.position))
+            sentiments.append(found.sentiment)
+        if _cites_domain(run, brand.domain):
+            own += 1
+    rate = round(own / len(runs), 4) if runs else None
+    return _mean(positions), _mean(sentiments), rate
 
 
 def week_start(value: datetime) -> datetime:
@@ -268,6 +301,10 @@ def build_overview(workspace: Workspace) -> OverviewOut:
         previous_shares, _previous_counts = _sov_for(by_week[weeks[-2]], entities)
     current_sov = shares.get(brand.name) if shares else None
     previous_sov = previous_shares.get(brand.name) if previous_shares else None
+    latest_runs = by_week[max(by_week)] if by_week else []
+    previous_runs = by_week[sorted(by_week)[-2]] if len(by_week) >= 2 else []
+    position, sentiment, own_rate = brand_reading(latest_runs, entities)
+    _previous_position, _previous_sentiment, previous_own = brand_reading(previous_runs, entities) if previous_runs else (None, None, None)
 
     ordered_audits = sorted(workspace.audits, key=lambda item: item.created_at)
     geo = ordered_audits[-1].draft.score if ordered_audits else None
@@ -290,6 +327,10 @@ def build_overview(workspace: Workspace) -> OverviewOut:
             citation_rate_delta=None if current_rate is None or previous_rate is None else current_rate - previous_rate,
             share_of_voice=current_sov,
             share_of_voice_delta=None if current_sov is None or previous_sov is None else current_sov - previous_sov,
+            average_position=position,
+            sentiment=sentiment,
+            own_source_rate=own_rate,
+            own_source_rate_delta=None if own_rate is None or previous_own is None else own_rate - previous_own,
             queries_tracked=len(counted_queries(workspace)),
             runs_completed=len(completed),
         ),
@@ -324,7 +365,7 @@ def build_tracking(workspace: Workspace) -> TrackingOut:
         for provider in workspace.providers:
             found = latest.get((query.id, provider))
             runs[provider] = project_run(found, entities) if found else None
-        queries.append(QueryTrackingOut(id=query.id, prompt=query.prompt, active=query.active, runs=runs))
+        queries.append(QueryTrackingOut(id=query.id, prompt=query.prompt, active=query.active, tag=query.tag, runs=runs))
     return TrackingOut(
         queries=queries,
         providers=list(workspace.providers),  # type: ignore[arg-type]

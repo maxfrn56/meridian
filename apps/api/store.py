@@ -51,6 +51,7 @@ class Query:
     id: str
     prompt: str
     active: bool
+    tag: str = ""
 
 
 @dataclass
@@ -378,7 +379,7 @@ class Store:
             domain=row.domain,
             sector=row.sector,
             queries=[
-                Query(id=item.id, prompt=item.prompt, active=item.active)
+                Query(id=item.id, prompt=item.prompt, active=item.active, tag=item.tag or "")
                 for item in sorted(row.queries, key=lambda item: (item.position, item.prompt))
             ],
             runs=[_run(item) for item in runs],
@@ -429,7 +430,7 @@ class Store:
         brand_name: str,
         domain: str,
         sector: str,
-        queries: list[tuple[str, bool]],
+        queries: list[tuple[str, bool, str]],
         providers: list[str] | None = None,
     ) -> Workspace:
         cleaned_domain = normalize_domain(domain)
@@ -439,13 +440,14 @@ class Store:
             raise ValueError("Deux cents requêtes maximum.")
 
         seen_prompts: set[str] = set()
-        wanted_queries: list[tuple[str, bool]] = []
-        for prompt, active in queries:
+        wanted_queries: list[tuple[str, bool, str]] = []
+        for prompt, active, tag in queries:
             cleaned = " ".join(prompt.split())
+            label = " ".join(tag.split())[:40]
             if cleaned in seen_prompts:
                 raise ValueError("Deux requêtes sont identiques.")
             seen_prompts.add(cleaned)
-            wanted_queries.append((cleaned, active))
+            wanted_queries.append((cleaned, active, label))
 
         with self._session() as session, session.begin():
             row = self._workspace_row(session, user_id)
@@ -454,11 +456,12 @@ class Store:
             # On garde les identifiants existants : l'historique des runs y reste rattaché.
             current_queries = {item.prompt: item for item in row.queries}
             next_queries: list[QueryRow] = []
-            for index, (prompt, active) in enumerate(wanted_queries):
+            for index, (prompt, active, tag) in enumerate(wanted_queries):
                 item = current_queries.pop(prompt, None)
                 if item is None:
                     item = QueryRow(id=uuid.uuid4().hex, prompt=prompt)
                 item.active = active
+                item.tag = tag
                 item.position = index
                 next_queries.append(item)
 

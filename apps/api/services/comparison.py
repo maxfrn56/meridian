@@ -16,12 +16,15 @@ from services.analyzer import Entity, is_generic_platform, normalize_domain
 from services.metrics import entities_of, measured_runs, run_mentions, week_start
 from store import StoredRun, Workspace
 
-METHOD = (
-    "Semaine la plus récente uniquement. Visibilité : part des réponses où le nom apparaît. "
-    "Position : rang moyen parmi les marques nommées, 1 étant la première. "
-    "Sources propres : part des réponses qui citent le domaine de la marque. "
-    "Réponses sourcées : part des réponses où le nom apparaît et où au moins une source est jointe."
-)
+def _method(span: str) -> str:
+    window = "Semaine la plus récente uniquement." if span == "week" else "Toutes les réponses déjà enregistrées."
+    return (
+        f"{window} Visibilité : part des réponses où le nom apparaît. "
+        "Position : rang moyen parmi les marques nommées, 1 étant la première. "
+        "Sources propres : part des réponses qui citent le domaine de la marque. "
+        "Réponses sourcées : part des réponses où le nom apparaît et où au moins une source est jointe. "
+        "Aucun nouvel appel n'est lancé."
+    )
 
 
 def _owns(domain: str, entity: Entity) -> bool:
@@ -45,12 +48,21 @@ def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2)
 
 
-def build_comparison(workspace: Workspace) -> ComparisonOut:
+def build_comparison(workspace: Workspace, span: str = "week", tag: str = "") -> ComparisonOut:
     entities = entities_of(workspace)
     brand = entities[0]
     completed = measured_runs(workspace)
+    label = " ".join(tag.split())[:40]
+    tags = sorted({item.tag.strip() for item in workspace.queries if item.tag.strip()}, key=str.casefold)
+    if label:
+        allowed = {item.id for item in workspace.queries if item.tag.strip().casefold() == label.casefold()}
+        completed = [run for run in completed if run.query_id in allowed]
     latest = max((week_start(run.created_at) for run in completed), default=None)
-    runs = [run for run in completed if latest and week_start(run.created_at) == latest]
+    if span == "all":
+        runs = list(completed)
+    else:
+        span = "week"
+        runs = [run for run in completed if latest and week_start(run.created_at) == latest]
     prepared: list[tuple[StoredRun, dict[str, object]]] = []
     for run in runs:
         mentions = run_mentions(run, entities)
@@ -58,19 +70,22 @@ def build_comparison(workspace: Workspace) -> ComparisonOut:
 
     providers = list(dict.fromkeys(run.provider for run, _mentions in prepared))
     entity_rows = [_entity_row(entity, prepared, providers) for entity in entities]
-    prompts = _prompts(entities, prepared)
+    tags_by_query = {item.id: item.tag.strip() for item in workspace.queries}
+    prompts = _prompts(entities, prepared, tags_by_query)
     sources = _sources(entities, brand, prepared)
     return ComparisonOut(
         brand_name=brand.name,
         domain=brand.domain,
         week=latest.date().isoformat() if latest else None,
+        span="all" if span == "all" else "week",
+        tags=tags,
         runs=len(prepared),
         providers=providers,  # type: ignore[arg-type]
         entities=entity_rows,
         prompts=prompts,
         sources=sources,
-        gaps=_gaps(brand, entity_rows, prompts, sources),
-        methodology=METHOD,
+        gaps=_gaps(brand, entity_rows, prompts, sources, "sur la période" if span == "all" else "cette semaine"),
+        methodology=_method(span),
     )
 
 
@@ -125,7 +140,7 @@ def _entity_row(entity: Entity, prepared: list[tuple[StoredRun, dict]], provider
     )
 
 
-def _prompts(entities: list[Entity], prepared: list[tuple[StoredRun, dict]]) -> list[ComparePrompt]:
+def _prompts(entities: list[Entity], prepared: list[tuple[StoredRun, dict]], tags: dict[str, str]) -> list[ComparePrompt]:
     grouped: dict[str, list[tuple[StoredRun, dict]]] = defaultdict(list)
     for item in prepared:
         grouped[item[0].query_id].append(item)
@@ -144,6 +159,7 @@ def _prompts(entities: list[Entity], prepared: list[tuple[StoredRun, dict]]) -> 
             ComparePrompt(
                 query_id=query_id,
                 prompt=items[0][0].query_prompt,
+                tag=tags.get(query_id, ""),
                 runs=len(items),
                 brand_mentioned=bool(brand_hits),
                 cells=cells,
@@ -197,6 +213,7 @@ def _gaps(
     entities: list[CompareEntity],
     prompts: list[ComparePrompt],
     sources: list[CompareSource],
+    period: str = "cette semaine",
 ) -> list[CompareGap]:
     gaps: list[CompareGap] = []
     ours = next((item for item in entities if item.name == brand.name), None)
@@ -253,7 +270,7 @@ def _gaps(
     if not gaps:
         gaps.append(
             CompareGap(
-                title="Aucun écart net cette semaine",
+                title=f"Aucun écart net {period}",
                 detail=f"{brand.name} est présente au moins aussi souvent que les concurrents suivis sur les questions mesurées.",
             )
         )

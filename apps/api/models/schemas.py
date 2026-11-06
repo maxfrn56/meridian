@@ -161,6 +161,7 @@ class AuthOut(APIModel):
 class QueryIn(APIModel):
     prompt: str = Field(min_length=8, max_length=400)
     active: bool = True
+    tag: str = Field(default="", max_length=40)
 
 
 
@@ -190,6 +191,7 @@ class QueryOut(APIModel):
     id: str
     prompt: str
     active: bool
+    tag: str = ""
 
 
 class GenerateQuestionsIn(APIModel):
@@ -254,6 +256,7 @@ class QueryTrackingOut(APIModel):
     id: str
     prompt: str
     active: bool
+    tag: str = ""
     runs: dict[str, TrackingRunOut | None]
 
 
@@ -329,6 +332,7 @@ class CompareCell(APIModel):
 class ComparePrompt(APIModel):
     query_id: str
     prompt: str
+    tag: str = ""
     runs: int
     brand_mentioned: bool
     cells: list[CompareCell]
@@ -353,6 +357,8 @@ class ComparisonOut(APIModel):
     brand_name: str
     domain: str
     week: str | None
+    span: Literal["week", "all"] = "week"
+    tags: list[str] = Field(default_factory=list)
     runs: int
     providers: list[Provider]
     entities: list[CompareEntity]
@@ -369,6 +375,10 @@ class Kpis(APIModel):
     citation_rate_delta: float | None
     share_of_voice: float | None
     share_of_voice_delta: float | None
+    average_position: float | None = None
+    sentiment: float | None = None
+    own_source_rate: float | None = None
+    own_source_rate_delta: float | None = None
     queries_tracked: int
     runs_completed: int
 

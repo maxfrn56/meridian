@@ -13,7 +13,7 @@ import { PROVIDERS, dateTimeLabel, providerLabel, sentimentMeta } from "@/lib/fo
 import type { Provider, Tracking, TrackingRun } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export function TrackingView() {
   const [ready, setReady] = useState(false);
@@ -24,6 +24,7 @@ export function TrackingView() {
 
 function TrackingData() {
   const [provider, setProvider] = useState<Provider | "all">("all");
+  const [tag, setTag] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const tracking = useQuery({ queryKey: ["tracking"], queryFn: () => api<Tracking>("/tracking") });
   const refresh = useRefreshAfterRun();
@@ -45,8 +46,12 @@ function TrackingData() {
   }
 
   const engines = PROVIDERS.filter((item) => tracking.data.providers.includes(item.id));
+  const tags = [...new Set(tracking.data.queries.map((query) => query.tag).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right, "fr"),
+  );
+  const visible = tag ? tracking.data.queries.filter((query) => query.tag === tag) : tracking.data.queries;
   /* « Tous les moteurs » : une ligne par moteur qui a répondu, la question n'est écrite qu'une fois. */
-  const rows = tracking.data.queries.flatMap((query) => {
+  const rows = visible.flatMap((query) => {
     if (provider !== "all") return [{ query, selected: query.runs[provider], first: true, key: `${query.id}-${provider}` }];
     const answered = engines.map((item) => query.runs[item.id]).filter((item): item is TrackingRun => Boolean(item));
     if (answered.length === 0) return [{ query, selected: null, first: true, key: `${query.id}-none` }];
@@ -67,6 +72,18 @@ function TrackingData() {
       <RunProgressBar active={active} complete={complete} />
       <ModeBanner mode={tracking.data.llmMode} />
       {run.error ? <p className="mb-4 text-sm font-semibold text-destructive">{run.error.message}</p> : null}
+      {tags.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <TagFilter active={tag === ""} onClick={() => setTag("")}>
+            Toutes les étiquettes
+          </TagFilter>
+          {tags.map((item) => (
+            <TagFilter key={item} active={tag === item} onClick={() => setTag(item)}>
+              {item}
+            </TagFilter>
+          ))}
+        </div>
+      ) : null}
       <Tabs value={provider} onValueChange={(value) => setProvider(value as Provider | "all")}>
         <TabsList>
           <TabsTrigger value="all">Tous les moteurs</TabsTrigger>
@@ -94,7 +111,7 @@ function TrackingData() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-muted-foreground">
-                    Ajoutez des requêtes dans les réglages pour lancer le suivi.
+                    {tag ? "Aucune question avec cette étiquette." : "Ajoutez des requêtes dans les réglages pour lancer le suivi."}
                   </td>
                 </tr>
               ) : null}
@@ -107,6 +124,7 @@ function TrackingData() {
                     open={open}
                     onToggle={() => setOpenId(open ? null : key)}
                     prompt={query.prompt}
+                    tag={query.tag}
                     showPrompt={first}
                     active={query.active}
                     run={selected}
@@ -123,8 +141,24 @@ function TrackingData() {
   );
 }
 
+function TagFilter({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border border-border px-3 py-1 text-xs",
+        active ? "bg-foreground text-background" : "text-muted-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function FragmentRow({
   prompt,
+  tag,
   showPrompt,
   active,
   run,
@@ -134,6 +168,7 @@ function FragmentRow({
   sentimentLabel,
 }: {
   prompt: string;
+  tag: string;
   showPrompt: boolean;
   active: boolean;
   run: TrackingRun | null;
@@ -154,6 +189,7 @@ function FragmentRow({
           >
             {showPrompt ? prompt : "Voir la réponse"}
           </button>
+          {showPrompt && tag ? <p className="mt-1 text-xs text-muted-foreground">{tag}</p> : null}
         </td>
         <td className="px-4 py-3">
           {run?.status === "failed" ? (

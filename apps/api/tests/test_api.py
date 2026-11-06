@@ -103,6 +103,30 @@ def test_comparison_ranks_brand_against_competitors(client: TestClient):
     assert body["prompts"][0]["cells"]
     assert body["gaps"]
     assert body["providers"]
+    assert body["span"] == "week"
+    kpis = client.get("/api/v1/overview", headers={"Authorization": f"Bearer {token}"}).json()["kpis"]
+    assert "averagePosition" in kpis
+    assert "sentiment" in kpis
+    assert "ownSourceRate" in kpis
+
+
+def test_tag_filters_recorded_answers_without_a_new_run(client: TestClient):
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    before = client.get("/api/v1/settings", headers=headers).json()
+    queries = before["queries"]
+    queries[0]["tag"] = "Zone"
+    saved = client.put("/api/v1/settings", headers=headers, json={**before, "queries": queries})
+    assert saved.status_code == 200
+    assert saved.json()["queries"][0]["tag"] == "Zone"
+    whole = client.get("/api/v1/comparison", headers=headers, params={"span": "all"}).json()
+    filtered = client.get("/api/v1/comparison", headers=headers, params={"span": "all", "tag": "Zone"}).json()
+    assert whole["span"] == "all"
+    assert filtered["tags"] == ["Zone"]
+    assert filtered["runs"] <= whole["runs"]
+    assert filtered["prompts"]
+    assert {item["tag"] for item in filtered["prompts"]} == {"Zone"}
+    tracking = client.get("/api/v1/tracking", headers=headers).json()
+    assert tracking["queries"][0]["tag"] == "Zone"
 
 
 def test_tracking_progress_is_idle_until_a_run(client: TestClient):

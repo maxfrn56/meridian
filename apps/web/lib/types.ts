@@ -37,6 +37,10 @@ export type Overview = {
     citationRateDelta: number | null;
     shareOfVoice: number | null;
     shareOfVoiceDelta: number | null;
+    averagePosition: number | null;
+    sentiment: number | null;
+    ownSourceRate: number | null;
+    ownSourceRateDelta: number | null;
     queriesTracked: number;
     runsCompleted: number;
   };
@@ -101,6 +105,7 @@ export type Tracking = {
     id: string;
     prompt: string;
     active: boolean;
+    tag: string;
     runs: Record<Provider, TrackingRun | null>;
   }[];
   providers: Provider[];
@@ -158,7 +163,7 @@ export type Settings = {
   brandName: string;
   domain: string;
   sector: string;
-  queries: { id: string; prompt: string; active: boolean }[];
+  queries: { id: string; prompt: string; active: boolean; tag: string }[];
   providers: Provider[];
 };
 
@@ -229,12 +234,15 @@ export type Comparison = {
   brandName: string;
   domain: string;
   week: string | null;
+  span: "week" | "all";
+  tags: string[];
   runs: number;
   providers: Provider[];
   entities: CompareEntity[];
   prompts: {
     queryId: string;
     prompt: string;
+    tag: string;
     runs: number;
     brandMentioned: boolean;
     cells: {
@@ -308,6 +316,6 @@ export type SettingsInput = {
   brandName: string;
   domain: string;
   sector: string;
-  queries: { prompt: string; active: boolean }[];
+  queries: { prompt: string; active: boolean; tag?: string }[];
   providers: Provider[];
 };
