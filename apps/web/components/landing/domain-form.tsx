@@ -1,23 +1,9 @@
 "use client";
 
+import { rememberDomain, normalizeDomain } from "@/lib/domain";
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
-
-const DOMAIN_PATTERN = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-
-/** Accepte « https://www.exemple.fr/page » comme « exemple.fr ». */
-export function normalizeDomain(raw: string): string | null {
-  const domain = raw
-    .trim()
-    .toLowerCase()
-    .replace(/^[a-z]+:\/\//, "")
-    .replace(/^www\./, "")
-    .split(/[/?#]/)[0]
-    .replace(/:\d+$/, "")
-    .replace(/\.$/, "");
-  return DOMAIN_PATTERN.test(domain) ? domain : null;
-}
 
 /** Champ « votre domaine » + bouton d'audit. Sans JavaScript, le formulaire envoie quand même vers /register. */
 export function DomainForm({ id }: { id: string }) {
@@ -36,6 +22,7 @@ export function DomainForm({ id }: { id: string }) {
       return;
     }
     setError(null);
+    rememberDomain(domain);
     router.push(`/register?domain=${encodeURIComponent(domain)}`);
   }
 

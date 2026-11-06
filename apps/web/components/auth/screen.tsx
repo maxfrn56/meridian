@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError, TOKEN_KEY, api, login, register, resendVerification } from "@/lib/api";
+import { rememberDomain, rememberedDomain } from "@/lib/domain";
 import type { User } from "@/lib/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -65,6 +66,14 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [pending, setPending] = useState(false);
+  const [site, setSite] = useState("");
+
+  useEffect(() => {
+    if (mode !== "register") return;
+    const fromUrl = new URLSearchParams(window.location.search).get("domain");
+    if (fromUrl) rememberDomain(fromUrl);
+    setSite(rememberedDomain());
+  }, [mode]);
 
   useEffect(() => {
     if (!localStorage.getItem(TOKEN_KEY)) return;
@@ -131,6 +140,7 @@ export function AuthScreen({ mode }: { mode: "login" | "register" }) {
         </div>
       ) : (
         <form onSubmit={submit}>
+          {site ? <p className="mt-6 text-sm text-muted-foreground">Site à suivre : {site}</p> : null}
           <div className="mt-8 grid gap-4">
             {mode === "register" ? (
               <div className="grid gap-1.5">

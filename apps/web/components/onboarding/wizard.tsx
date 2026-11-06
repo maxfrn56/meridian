@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api, generateQuestions, saveSettings } from "@/lib/api";
+import { forgetDomain, rememberedDomain } from "@/lib/domain";
 import { providerLabel, PROVIDERS } from "@/lib/format";
 import type { Provider, Settings, SettingsInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,11 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const request = useRef(0);
   const coachOnce = useRef(false);
   const generatedFrom = useRef("");
+
+  useEffect(() => {
+    const saved = rememberedDomain();
+    if (saved) setDomain(saved);
+  }, []);
 
   useEffect(() => {
     if (!settings.data || readyBrand) return;
@@ -161,6 +167,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     setError(null);
     try {
       await saveSettings(payload);
+      forgetDomain();
       try {
         await runTracking({});
       } catch (caught) {
