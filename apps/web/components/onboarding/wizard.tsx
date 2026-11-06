@@ -210,8 +210,8 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col px-5 py-6">
+    <div className="fixed inset-0 z-50 flex h-dvh flex-col overflow-hidden bg-background">
+      <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col px-5 py-6">
         <div className="flex gap-1" aria-hidden="true">
           {Array.from({ length: STEPS }, (_, index) => (
             <span key={index} className={cn("h-1 flex-1 rounded-full", index <= step ? "bg-foreground" : "bg-border")} />
@@ -492,7 +492,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         {pending ? <div className="mt-4"><RunProgressBar active /></div> : null}
         {error ? <p className="mt-4 text-sm font-semibold">{error}</p> : null}
 
-        <div className="mt-auto flex items-center justify-end gap-3 pt-8">
+        <div className="mt-4 flex shrink-0 items-center justify-end gap-3 pt-4">
           <div className="flex gap-2">
             {step > 0 ? (
               <Button type="button" variant="outline" onClick={() => go(step - 1)} disabled={pending || generating}>
