@@ -15,7 +15,8 @@ import { useEffect, useRef, useState } from "react";
 
 const ACTIVITIES = ["Commerce", "Service local", "Logiciel", "Industrie", "Conseil"] as const;
 const MARKETS = ["France", "Belgique", "Suisse", "Canada"] as const;
-const STEPS = 7;
+const STEPS = 8;
+const SEED_COUNT = 3;
 const DEFAULT_ENGINES: Provider[] = ["openai", "perplexity", "gemini"];
 const MAX_QUESTIONS = 200;
 
@@ -42,16 +43,17 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const [city, setCity] = useState("");
   const [multi, setMulti] = useState(false);
   const [engines, setEngines] = useState<Provider[]>(DEFAULT_ENGINES);
+  const [seeds, setSeeds] = useState<string[]>(["", "", ""]);
   const [questions, setQuestions] = useState<string[]>([""]);
   const [coach, setCoach] = useState(false);
   const [coachPage, setCoachPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
   const [readyBrand, setReadyBrand] = useState(false);
   const request = useRef(0);
   const coachOnce = useRef(false);
+  const generatedFrom = useRef("");
 
   useEffect(() => {
     if (!settings.data || readyBrand) return;
@@ -66,26 +68,30 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   function go(next: number) {
     setError(null);
     setStep(next);
-    if (next === 5 && !generating && questions.every((item) => item.trim().length < 8)) {
-      void propose();
+    if (next === 6) {
+      const key = keptQuestions(seeds).join("\n");
+      if (key !== generatedFrom.current) void propose();
     }
   }
 
   async function propose() {
+    const written = keptQuestions(seeds).slice(0, SEED_COUNT);
     const id = request.current + 1;
     request.current = id;
     setGenerating(true);
     setError(null);
+    setQuestions(written);
     try {
       const result = await generateQuestions({
         brandName: brand.trim().slice(0, 80),
         domain: domain.trim(),
         sector: sectorLine(offer, market, city, multi),
-        existing: [],
+        existing: written,
       });
       if (request.current !== id) return;
-      setQuestions(result.questions.length > 0 ? result.questions.slice(0, MAX_QUESTIONS) : [""]);
-      setGenerated(true);
+      const extra = result.questions.filter((item) => !written.some((seed) => seed.toLocaleLowerCase("fr-FR") === item.toLocaleLowerCase("fr-FR")));
+      setQuestions([...written, ...extra].slice(0, MAX_QUESTIONS));
+      generatedFrom.current = written.join("\n");
       if (!coachOnce.current) {
         coachOnce.current = true;
         setCoach(true);
@@ -108,8 +114,16 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     if (index === 2 && offer.trim().length < 2) return "Décrivez en quelques mots ce que l'entreprise vend.";
     if (index === 3 && !market.trim()) return "Choisissez un pays.";
     if (index === 4 && engines.length !== 3) return "Choisissez trois modèles.";
-    if (index === 5 && !questions.some((item) => item.trim().length >= 8)) {
-      return "Écrivez au moins une question, telle qu'un client la poserait.";
+    if (index === 5) {
+      const written = seeds.map((item) => item.trim());
+      if (written.length !== SEED_COUNT || written.some((item) => item.length < 8)) {
+        return "Écrivez trois questions, telles qu'un client les poserait.";
+      }
+      const distinct = new Set(written.map((item) => item.toLocaleLowerCase("fr-FR")));
+      if (distinct.size !== SEED_COUNT) return "Les trois questions doivent être différentes.";
+    }
+    if (index === 6 && !questions.some((item) => item.trim().length >= 8)) {
+      return "Gardez au moins une question.";
     }
     return null;
   }
@@ -127,10 +141,10 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   }
 
   async function finish() {
-    const problem = validate(5);
+    const problem = validate(6);
     if (problem) {
       setError(problem);
-      setStep(5);
+      setStep(6);
       return;
     }
     const payload: SettingsInput = {
@@ -173,21 +187,19 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   }
 
   function addSuggestion(text: string) {
-    setQuestions((current) => {
+    setSeeds((current) => {
       const empty = current.findIndex((item) => item.trim().length === 0);
-      if (empty >= 0) return current.map((item, index) => (index === empty ? text : item));
-      if (current.length >= 3) return current;
-      return [...current, text];
+      if (empty < 0) return current;
+      return current.map((item, index) => (index === empty ? text : item));
     });
-    setCoach(false);
   }
 
   const place = city.trim() || market;
   const offerText = offer.trim().toLocaleLowerCase("fr-FR");
   const suggestions = [
     `Quel est le meilleur ${offerText || "prestataire"} à ${place} ?`,
-    `${brand.trim() || "Notre marque"} ou un concurrent pour ${offerText || "ce métier"} ?`,
-    `Comment choisir un ${offerText || "fournisseur"} ${market === "France" ? "en France" : `en ${market}`} ?`,
+    `Qui contacter pour ${offerText || "ce métier"} à ${place} ?`,
+    `Comment choisir un ${offerText || "prestataire"} à ${place} ?`,
   ];
 
   return (
@@ -207,7 +219,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
             <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Quel site faut-il suivre ?</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                On commence par là : les questions seront rédigées à partir de ce site, puis envoyées aux IA.
+                On commence par là. Vous écrirez ensuite trois questions de clients, et le site servira à les compléter.
               </p>
               <Input
                 className="mt-8 h-12 text-base"
@@ -366,9 +378,43 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
 
           {step === 5 ? (
             <>
+              <h1 className="text-3xl font-semibold tracking-[-0.03em]">Écrivez trois questions de vos clients.</h1>
+              <p className="mt-3 text-base leading-6 text-muted-foreground">
+                Claude s'en inspire, avec votre site, pour compléter la liste. L'essai va jusqu'à 10 questions au total. Un forfait va jusqu'au nombre envoyé chaque jour.
+              </p>
+              <div className="mt-6 flex flex-col gap-2">
+                {suggestions.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => addSuggestion(item)}
+                    className="rounded-xl border border-border px-4 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 space-y-3">
+                {seeds.map((question, index) => (
+                  <Textarea
+                    key={index}
+                    aria-label={`Question ${index + 1}`}
+                    placeholder={`Question ${index + 1}`}
+                    value={question}
+                    onChange={(event) =>
+                      setSeeds((current) => current.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+
+          {step === 6 ? (
+            <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Que demandent vos clients aux IA ?</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
-                Les questions se rédigent à partir du site et de l'activité, puis sont posées aux trois modèles choisis. Relisez-les avant de continuer.
+                Vos trois questions sont en tête. Les suivantes viennent du site et de ces exemples. Relisez-les avant de continuer.
               </p>
               {generating ? (
                 <p className="mt-8 text-sm font-semibold" role="status">
@@ -376,20 +422,6 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                 </p>
               ) : (
                 <>
-                  {generated ? null : (
-                    <div className="mt-6 flex flex-col gap-2">
-                      {suggestions.map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => addSuggestion(item)}
-                          className="rounded-xl border border-border px-4 py-3 text-left text-sm hover:bg-muted"
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                   <div className="mt-4 space-y-3">
                     {questions.map((question, index) => (
                       <div key={index} className="grid grid-cols-[1fr_auto] items-start gap-2">
@@ -417,7 +449,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button type="button" variant="outline" onClick={() => void propose()}>
-                      {generated ? "Générer à nouveau" : "Générer les questions"}
+                      Générer à nouveau
                     </Button>
                     {questions.length < MAX_QUESTIONS ? (
                       <Button type="button" variant="outline" onClick={() => setQuestions((current) => [...current, ""])}>
@@ -430,7 +462,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
             </>
           ) : null}
 
-          {step === 6 ? (
+          {step === 7 ? (
             <>
               <h1 className="text-3xl font-semibold tracking-[-0.03em]">Voici ce qu'on va mesurer.</h1>
               <p className="mt-3 text-base leading-6 text-muted-foreground">
@@ -469,7 +501,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {coach && step === 5 ? (
+      {coach && step === 6 ? (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-2xl bg-background p-6 shadow-float" role="dialog" aria-modal="true" aria-labelledby="coach-title">
             <p className="text-sm text-muted-foreground">

@@ -64,8 +64,9 @@ Tu reçois un portrait du site. Chaque question est celle d'un vrai client qui c
 - chaque question nomme au moins un lieu du portrait, comme le dirait un client (« à Biarritz », « au Pays basque ») ;
 - le client compare des pairs : mêmes métier, taille et zone. Il ne demande pas une plateforme, un annuaire ou une place de marché (Malt, Codeur, Upwork) ;
 - variées : trouver un prestataire, comparer deux formes de pairs, un travail précis du site, un critère local ;
+- si le client a déjà écrit des questions, imite leur précision et leur intention : autre angle, même métier, même taille, même zone. Ne les recopie pas ;
 - concrètes et naturelles, une phrase ou deux, 200 caractères au plus ;
-- toutes différentes entre elles et différentes des questions déjà suivies.
+- toutes différentes entre elles et différentes des questions déjà écrites.
 
 Exemple d'altitude, à ne pas recopier. Portrait : indépendant, sites et e-commerce, Biarritz et Pays basque.
 Juste : « Quel développeur web freelance à Biarritz pour une boutique en ligne ? »
@@ -238,7 +239,14 @@ def build_user_message(
     portrait: SitePortrait,
     places: list[str],
 ) -> str:
-    current = "\n".join(f"- {item}" for item in existing) or "- aucune"
+    if existing:
+        current = (
+            "Questions écrites par le client, à prendre comme modèle de précision. "
+            "Ne les recopie pas et n'en fais pas de simples variantes :\n"
+            + "\n".join(f"- {item}" for item in existing)
+        )
+    else:
+        current = "Questions déjà écrites :\n- aucune"
     zone = ", ".join(places) if places else portrait.reach or "non précisée"
     return (
         f"Entreprise, à ne jamais nommer : {brand_name} ({domain})\n"
@@ -247,7 +255,7 @@ def build_user_message(
         f"Zone à nommer dans chaque question : {zone}\n"
         f"Pairs à faire comparer : {portrait.peers or 'entreprises de la même taille, du même métier et de la même zone'}\n"
         f"Indication du formulaire : {sector or 'aucune'}\n\n"
-        f"Questions déjà suivies :\n{current}\n\n"
+        f"{current}\n\n"
         f"Écris {count} nouvelles questions."
     )
 

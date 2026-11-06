@@ -135,6 +135,13 @@ function AccountAccess({ billing }: { billing?: Subscription }) {
                 ? `${billing.questionsUsed} question${billing.questionsUsed > 1 ? "s" : ""} envoyée${billing.questionsUsed > 1 ? "s" : ""} aujourd'hui sur 10. Il en reste ${billing.questionsRemaining}.`
                 : "L'essai de 7 jours est terminé. Choisissez un forfait pour continuer."}
           </p>
+          {plan || billing?.trialActive ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {plan
+                ? `Chaque jour, elles partent en un seul envoi, jusqu'à ${plan.questionsPerDay}.`
+                : "Chaque jour, l'essai envoie 10 questions en un seul envoi."}
+            </p>
+          ) : null}
           <Button asChild className="mt-4" variant="outline">
             <Link href="/billing">{plan ? "Changer de forfait" : billing?.trialActive ? "Voir les forfaits" : "Choisir un forfait"}</Link>
           </Button>

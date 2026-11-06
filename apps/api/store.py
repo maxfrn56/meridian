@@ -403,6 +403,10 @@ class Store:
         row.period_month = day
         row.questions_used = 0
 
+    def workspace_user_ids(self) -> list[str]:
+        with self._session() as session:
+            return list(session.scalars(select(WorkspaceRow.user_id)).all())
+
     def workspace_for(self, user_id: str) -> Workspace | None:
         with self._session() as session:
             row = self._workspace_row(session, user_id)

@@ -7,6 +7,7 @@ from pathlib import Path
 _DB_DIR = Path(tempfile.mkdtemp(prefix="meridian-tests-"))
 # Doit être posé avant le premier import de config.
 os.environ["DATABASE_URL"] = f"sqlite:///{(_DB_DIR / 'test.db').as_posix()}"
+os.environ["DAILY_SEND"] = "false"
 
 import pytest  # noqa: E402
 

@@ -190,6 +190,122 @@ def test_tracking_uses_the_first_questions_in_settings(client: TestClient):
     assert billing["questionsUsed"] == 20
 
 
+def test_trial_sends_ten_and_reference_sends_the_whole_list_at_once(client: TestClient):
+    from datetime import datetime, timedelta, timezone
+
+    from models.tables import WorkspaceRow
+    from seed import QUERIES
+
+    headers = {"Authorization": f"Bearer {_token(client)}"}
+    user = store.user_by_email(DEMO_EMAIL)
+    assert user is not None
+    workspace = store.workspace_for(user.id)
+    assert workspace is not None
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with store._session() as session, session.begin():
+        row = session.get(WorkspaceRow, workspace.id)
+        assert row is not None
+        row.plan_id = None
+        row.trial_ends_at = datetime.now(timezone.utc) + timedelta(days=3)
+        row.questions_used = 0
+        row.period_month = day
+    before = client.get("/api/v1/tracking", headers=headers).json()
+    trial = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
+    assert trial.status_code == 200
+    after_trial = client.get("/api/v1/tracking", headers=headers).json()
+    before_ids = {item["prompt"]: item["runs"]["perplexity"]["id"] for item in before["queries"]}
+    trial_ids = {item["prompt"]: item["runs"]["perplexity"]["id"] for item in after_trial["queries"]}
+    for prompt in QUERIES[:10]:
+        assert trial_ids[prompt] != before_ids[prompt]
+    for prompt in QUERIES[10:]:
+        assert trial_ids[prompt] == before_ids[prompt]
+    assert client.get("/api/v1/billing", headers=headers).json()["questionsUsed"] == 10
+
+    with store._session() as session, session.begin():
+        row = session.get(WorkspaceRow, workspace.id)
+        assert row is not None
+        row.plan_id = "reference"
+        row.questions_used = 0
+        row.period_month = day
+    whole = client.post("/api/v1/tracking/run", headers=headers, json={"providers": ["perplexity"]})
+    assert whole.status_code == 200
+    after_plan = client.get("/api/v1/tracking", headers=headers).json()
+    plan_ids = {item["prompt"]: item["runs"]["perplexity"]["id"] for item in after_plan["queries"]}
+    for prompt in QUERIES:
+        assert plan_ids[prompt] != trial_ids[prompt]
+    assert client.get("/api/v1/billing", headers=headers).json()["questionsUsed"] == len(QUERIES)
+
+
+def test_daily_batch_skips_a_plan_already_spent_today(client: TestClient):
+    import uuid
+    from datetime import datetime, timedelta, timezone
+
+    from security import hash_password
+    from services.daily import due_user_ids
+    from store import Query, User, Workspace
+
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    user = User(
+        id=uuid.uuid4().hex,
+        name="Ada",
+        email="ada-daily@example.com",
+        password_hash=hash_password("meridian8"),
+        email_verified=True,
+    )
+    workspace_id = uuid.uuid4().hex
+    store.add_user(
+        user,
+        Workspace(
+            id=workspace_id,
+            user_id=user.id,
+            name="Ada",
+            brand_name="Ada",
+            domain="ada.example",
+            sector="Logiciel",
+            plan_id="reference",
+            period_month=day,
+            questions_used=0,
+            queries=[Query(id=uuid.uuid4().hex, prompt="Quel outil choisir à Lyon pour une équipe produit ?", active=True)],
+        ),
+    )
+    assert user.id in due_user_ids()
+    from models.tables import WorkspaceRow
+
+    with store._session() as session, session.begin():
+        row = session.get(WorkspaceRow, workspace_id)
+        assert row is not None
+        row.questions_used = 200
+    assert user.id not in due_user_ids()
+
+    expired = User(
+        id=uuid.uuid4().hex,
+        name="Léa",
+        email="lea-daily@example.com",
+        password_hash=hash_password("meridian8"),
+        email_verified=True,
+    )
+    store.add_user(
+        expired,
+        Workspace(
+            id=uuid.uuid4().hex,
+            user_id=expired.id,
+            name="Léa",
+            brand_name="Léa",
+            domain="lea.example",
+            sector="Logiciel",
+            plan_id=None,
+            period_month=day,
+            questions_used=0,
+            trial_ends_at=datetime.now(timezone.utc) - timedelta(days=1),
+            queries=[Query(id=uuid.uuid4().hex, prompt="Quel outil choisir à Lyon pour une équipe produit ?", active=True)],
+        ),
+    )
+    assert expired.id not in due_user_ids()
+    demo = store.user_by_email(DEMO_EMAIL)
+    assert demo is not None
+    assert demo.id not in due_user_ids()
+
+
 def test_settings_require_exactly_three_engines(client: TestClient):
     headers = {"Authorization": f"Bearer {_token(client)}"}
     current = client.get("/api/v1/settings", headers=headers).json()

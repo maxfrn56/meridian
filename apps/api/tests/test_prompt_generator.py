@@ -8,6 +8,7 @@ from config import settings
 from services.prompt_generator import (
     GeneratedQuestions,
     SitePortrait,
+    build_user_message,
     clean_questions,
     generate_questions,
     page_brief,
@@ -58,9 +59,32 @@ def test_budget_follows_the_plan():
     assert question_budget("reference", 250) == 0
     # Sans forfait : l'essai, dix questions par jour.
     assert question_budget(None, 0) == 10
+    # Les questions déjà écrites comptent dans le total du jour : l'essai complète jusqu'à 10.
+    assert question_budget(None, 3) == 7
+    assert question_budget("essentiel", 3) == 17
+    assert question_budget("reference", 10) == 190
     from datetime import datetime, timedelta, timezone
 
     assert question_budget(None, 0, datetime.now(timezone.utc) - timedelta(days=1)) == 0
+
+
+def test_client_questions_are_the_model_for_new_ones():
+    portrait = SitePortrait(
+        activity="sites, e-commerce et référencement",
+        size="indépendant",
+        reach="Biarritz et le Pays basque",
+        places=["Biarritz", "Pays basque"],
+        peers="développeurs indépendants et petites agences web",
+    )
+    written = [
+        "Quel développeur web freelance à Biarritz pour une boutique en ligne ?",
+        "Petite agence ou indépendant au Pays basque pour refondre un site ?",
+        "Qui fait le référencement d'un commerce à Biarritz ?",
+    ]
+    message = build_user_message("Atelier", "atelier.fr", "Sites · France, Biarritz", written, 7, portrait, ["biarritz"])
+    assert "modèle de précision" in message
+    assert written[0] in message
+    assert "Écris 7 nouvelles questions." in message
 
 
 def test_questions_stay_on_the_portrait_places_and_drop_directories():

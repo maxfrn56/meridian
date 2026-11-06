@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,7 +21,18 @@ async def lifespan(_app: FastAPI):
         seed_demo()
     ensure_admins()
     import_legacy_file()
-    yield
+    daily = None
+    if os.getenv("DAILY_SEND", "true").strip().lower() not in {"0", "false", "no"}:
+        import asyncio
+
+        from services.daily import daily_loop
+
+        daily = asyncio.create_task(daily_loop())
+    try:
+        yield
+    finally:
+        if daily is not None:
+            daily.cancel()
 
 
 app = FastAPI(

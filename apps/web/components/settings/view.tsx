@@ -180,9 +180,9 @@ function SettingsData() {
             </CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
               {billing.data?.plan
-                ? `Le suivi part du haut de la liste et s'arrête à ${allowance} questions par jour. Les suivantes ne sont pas envoyées.`
+                ? `Chaque jour, jusqu'à ${allowance} questions partent en un seul envoi, en commençant par le haut. La génération complète la liste jusque-là, à partir du site et des questions déjà écrites.`
                 : billing.data?.trialActive
-                  ? `L'essai part du haut de la liste et s'arrête à ${allowance} questions par jour. Les suivantes ne sont pas envoyées.`
+                  ? `Chaque jour, l'essai envoie ${allowance} questions en un seul envoi, en commençant par le haut. La génération complète la liste jusque-là.`
                   : "L'essai est terminé. Choisissez un forfait pour continuer."}
             </p>
           </div>
