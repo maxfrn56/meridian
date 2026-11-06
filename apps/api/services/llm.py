@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import random
 import re
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from services import dataforseo
 from services.analyzer import Entity, host_of
 from services.dataforseo import DataForSEOError
 from services.simulator import Source, simulate_answer
+
+logger = logging.getLogger(__name__)
 
 # Modèles des appels directs et des simulations. Via DataForSEO, le modèle vient de la réponse.
 MODELS = {
@@ -198,6 +201,20 @@ async def _call_claude(prompt: str) -> ProviderResult:
     return ProviderResult(text="\n".join(texts), sources=_dedupe(sources), model=model, source_mode="live")
 
 
+async def _call_direct(provider: str, prompt: str) -> ProviderResult:
+    if provider == "openai":
+        return await _call_openai(prompt)
+    if provider == "perplexity":
+        return await _call_perplexity(prompt)
+    if provider == "gemini":
+        return await _call_gemini(prompt, MODELS["gemini"])
+    if provider == "aistudio":
+        return await _call_gemini(prompt, MODELS["aistudio"])
+    if provider == "claude":
+        return await _call_claude(prompt)
+    raise EngineUnavailable("Aucun accès configuré pour ce moteur : ajoutez les identifiants DataForSEO.")
+
+
 def _dedupe(sources: list[Source]) -> list[Source]:
     seen: set[str] = set()
     unique: list[Source] = []
@@ -209,13 +226,39 @@ def _dedupe(sources: list[Source]) -> list[Source]:
     return unique
 
 
+def _direct_call(provider: str):
+    """Appel direct ChatGPT, Perplexity ou Gemini quand la clé Railway est posée."""
+    key = {
+        "openai": getattr(settings, "openai_api_key", ""),
+        "perplexity": getattr(settings, "perplexity_api_key", ""),
+        "gemini": getattr(settings, "gemini_api_key", ""),
+    }.get(provider, "")
+    if not key:
+        return None
+    if provider == "openai":
+        return _call_openai
+    if provider == "perplexity":
+        return _call_perplexity
+    if provider == "gemini":
+        return lambda prompt: _call_gemini(prompt, MODELS["gemini"])
+    return None
+
+
 async def complete(provider: str, prompt: str, entities: list[Entity], nonce: str) -> ProviderResult:
     mode = settings.provider_mode(provider)
     if mode == "mock":
         return _mock(prompt, provider, entities, nonce)
     try:
         if settings.provider_backend(provider) == "dataforseo":
-            answer = await dataforseo.ask(provider, prompt)
+            try:
+                answer = await dataforseo.ask(provider, prompt)
+            except (DataForSEOError, httpx.HTTPStatusError) as error:
+                refused = isinstance(error, DataForSEOError) or error.response.status_code in {401, 402, 403}
+                direct = _direct_call(provider) if refused else None
+                if direct is None:
+                    raise
+                logger.warning("DataForSEO indisponible pour %s. Repli sur la clé directe.", provider)
+                return await direct(prompt)
             return ProviderResult(
                 text=answer.text,
                 sources=answer.sources,
@@ -223,17 +266,7 @@ async def complete(provider: str, prompt: str, entities: list[Entity], nonce: st
                 source_mode="live",
                 no_answer=answer.no_answer,
             )
-        if provider == "openai":
-            return await _call_openai(prompt)
-        if provider == "perplexity":
-            return await _call_perplexity(prompt)
-        if provider == "gemini":
-            return await _call_gemini(prompt, MODELS["gemini"])
-        if provider == "aistudio":
-            return await _call_gemini(prompt, MODELS["aistudio"])
-        if provider == "claude":
-            return await _call_claude(prompt)
-        raise EngineUnavailable("Aucun accès configuré pour ce moteur : ajoutez les identifiants DataForSEO.")
+        return await _call_direct(provider, prompt)
     except (httpx.HTTPError, KeyError, IndexError, ValueError, DataForSEOError) as error:
         return ProviderResult(
             text="",

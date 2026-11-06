@@ -139,10 +139,31 @@ def test_refusals_become_readable_errors(credentials, monkeypatch):
         raise DataForSEOError("DataForSEO 40104 : Please verify your account before using the API.")
 
     monkeypatch.setattr(dataforseo, "ask", refusing)
-    monkeypatch.setattr(llm, "settings", SimpleNamespace(**credentials.__dict__, provider_mode=lambda p: "live",
+    without_keys = {**credentials.__dict__, "openai_api_key": "", "perplexity_api_key": "", "gemini_api_key": ""}
+    monkeypatch.setattr(llm, "settings", SimpleNamespace(**without_keys, provider_mode=lambda p: "live",
                                                          provider_backend=lambda p: "dataforseo"))
     result = asyncio.run(llm.complete("openai", PROMPT, [], "n"))
     assert result.error == "DataForSEO 40104 : Please verify your account before using the API."
+
+
+def test_dataforseo_refusal_uses_the_direct_key(credentials, monkeypatch):
+    async def refusing(provider, prompt, client=None):
+        raise DataForSEOError("DataForSEO 40200 : Payment Required.")
+
+    async def direct(prompt):
+        return llm.ProviderResult(text="réponse directe", sources=[], model="gpt-4o", source_mode="live")
+
+    monkeypatch.setattr(dataforseo, "ask", refusing)
+    monkeypatch.setattr(llm, "_call_openai", direct)
+    with_key = {**credentials.__dict__, "openai_api_key": "sk-test"}
+    monkeypatch.setattr(llm, "settings", SimpleNamespace(**with_key, provider_mode=lambda p: "live",
+                                                         provider_backend=lambda p: "dataforseo"))
+    result = asyncio.run(llm.complete("openai", PROMPT, [], "n"))
+    assert result.error is None
+    assert result.text == "réponse directe"
+
+    blocked = asyncio.run(llm.complete("google_ai_overview", PROMPT, [], "n"))
+    assert blocked.error
 
 
 def test_no_answer_runs_are_kept_apart():
